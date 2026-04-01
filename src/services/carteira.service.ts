@@ -1,12 +1,95 @@
 import * as XLSX from 'xlsx';
 import { supabase } from './supabase';
 import {
+  COLUNAS_BRUTAS_REC,
   COLUNAS_OBRIGATORIAS_EXCEL,
   EXCEL_TO_DB_MAP,
   CarteiraExcelRow,
   RowValidationResult,
   StructureValidationResult,
 } from '../constants/carteira-columns';
+
+/**
+ * Remove empty columns from Excel headers (columns named __EMPTY, __EMPTY_1, etc.)
+ * This is a deterministic operation on the raw REC file.
+ */
+function removerColunasVazias(headers: string[]): string[] {
+  return headers.filter(header => !header.startsWith('__EMPTY'));
+}
+
+/**
+ * Validates EXACT order and names of the 38 raw columns from REC file.
+ * This validation happens on the SEQUENCE of non-empty columns (not original sheet indices).
+ * NO tolerance for different order or names.
+ */
+function validarOrdemExataBruta(headers: string[]): StructureValidationResult {
+  // Must have exactly 38 columns after removing empty ones
+  if (headers.length !== 38) {
+    return {
+      valid: false,
+      errorMessage: `Arquivo fora do layout oficial da carteira REC. Esperado: 38 colunas com dados, encontrado: ${headers.length}`,
+    };
+  }
+
+  // Check exact order and names in the SEQUENCE
+  const mismatchedColumns: Array<{ expected: string; found: string }> = [];
+
+  for (let i = 0; i < COLUNAS_BRUTAS_REC.length; i++) {
+    const expected = COLUNAS_BRUTAS_REC[i];
+    const found = headers[i];
+
+    if (expected !== found) {
+      mismatchedColumns.push({ expected, found });
+    }
+  }
+
+  if (mismatchedColumns.length > 0) {
+    const details = mismatchedColumns
+      .map((m, idx) => {
+        const position = mismatchedColumns.indexOf(m);
+        return `Posição ${position + 1} na sequência: esperado "${m.expected}", encontrado "${m.found}"`;
+      })
+      .slice(0, 5)
+      .join('; ');
+
+    return {
+      valid: false,
+      mismatchedColumns,
+      errorMessage: `Arquivo fora do layout oficial da carteira REC. Colunas fora de ordem: ${details}`,
+    };
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Rename the SECOND occurrence of "Filial" column to "Filial (origem)".
+ * In the cleaned sequence, the first "Filial" stays as is, the second "Filial" becomes "Filial (origem)".
+ */
+function renomearSegundaFilial(data: any[]): any[] {
+  if (data.length === 0) return data;
+
+  return data.map(row => {
+    const newRow: any = {};
+    const keys = Object.keys(row);
+    let filialCount = 0;
+
+    keys.forEach((key) => {
+      if (key === 'Filial') {
+        filialCount++;
+        if (filialCount === 1) {
+          newRow['Filial'] = row[key];
+        } else if (filialCount === 2) {
+          newRow['Filial (origem)'] = row[key];
+        }
+      } else {
+        newRow[key] = row[key];
+      }
+    });
+
+    return newRow;
+  });
+}
 
 interface UploadResult {
   success: boolean;
@@ -279,8 +362,16 @@ function extractTypedColumns(row: Partial<CarteiraExcelRow>) {
 }
 
 /**
- * Process uploaded Excel file with EXACT column validation.
- * NO normalization allowed - file must match exactly or be rejected.
+ * Process uploaded Excel file from raw REC export.
+ * Handles automatic cleaning and validation of the official REC layout.
+ *
+ * Flow:
+ * 1. Read raw Excel file starting from row 5 (L5)
+ * 2. Remove empty columns (__EMPTY*)
+ * 3. Validate exact sequence of 38 non-empty columns
+ * 4. Rename second "Filial" to "Filial (origem)"
+ * 5. Validate final structure
+ * 6. Process and persist data
  */
 export async function processCarteiraUpload(
   file: File,
@@ -288,17 +379,18 @@ export async function processCarteiraUpload(
   filialId: string
 ): Promise<UploadResult> {
   try {
-    // Read file
+    // STEP 1: Read raw file starting from row 5 (L5 - where data begins)
     const arrayBuffer = await file.arrayBuffer();
     const workbook = XLSX.read(arrayBuffer, { raw: false, defval: '' });
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
 
-    // Convert to JSON with NO transformation
-    const jsonData = XLSX.utils.sheet_to_json(worksheet, {
+    // Convert to JSON starting from row 5 (header row in REC file)
+    let jsonData = XLSX.utils.sheet_to_json(worksheet, {
       raw: false,
       defval: '',
-    }) as Partial<CarteiraExcelRow>[];
+      range: 4, // Start from row 5 (0-indexed, so row 5 = index 4)
+    }) as any[];
 
     if (jsonData.length === 0) {
       return {
@@ -306,15 +398,62 @@ export async function processCarteiraUpload(
         total_linhas: 0,
         total_validas: 0,
         total_invalidas: 0,
-        error: 'Arquivo vazio ou sem dados',
+        error: 'Arquivo vazio ou sem dados a partir da linha 5',
       };
     }
 
-    // Extract headers from first row (EXACT - no normalization)
-    const headers = Object.keys(jsonData[0]);
+    // STEP 2: Extract raw headers from first data row and remove empty columns
+    const rawHeaders = Object.keys(jsonData[0]);
+    const cleanedHeaders = removerColunasVazias(rawHeaders);
 
-    // Validate structure with EXACT matching
-    const structureValidation = validateExcelStructure(headers);
+    // STEP 3: Validate exact sequence of 38 non-empty columns (before renaming)
+    const rawValidation = validarOrdemExataBruta(cleanedHeaders);
+    if (!rawValidation.valid) {
+      // Create upload record with error
+      const { data: upload } = await supabase
+        .from('uploads_carteira')
+        .insert({
+          nome_arquivo: file.name,
+          usuario_id: usuarioId,
+          filial_id: filialId,
+          total_linhas: 0,
+          total_validas: 0,
+          total_invalidas: 0,
+          status: 'erro',
+          erro_estrutura: rawValidation.errorMessage,
+        })
+        .select()
+        .single();
+
+      return {
+        success: false,
+        uploadId: upload?.id,
+        total_linhas: 0,
+        total_validas: 0,
+        total_invalidas: 0,
+        error: rawValidation.errorMessage,
+      };
+    }
+
+    // STEP 4: Remove empty columns from all data rows
+    jsonData = jsonData.map(row => {
+      const cleanedRow: any = {};
+      Object.keys(row).forEach(key => {
+        if (!key.startsWith('__EMPTY')) {
+          cleanedRow[key] = row[key];
+        }
+      });
+      return cleanedRow;
+    });
+
+    // STEP 5: Rename second "Filial" to "Filial (origem)"
+    jsonData = renomearSegundaFilial(jsonData);
+
+    // STEP 6: Extract processed headers
+    const processedHeaders = Object.keys(jsonData[0]);
+
+    // STEP 7: Validate final structure (after renaming)
+    const structureValidation = validateExcelStructure(processedHeaders);
     if (!structureValidation.valid) {
       // Create upload record with error
       const { data: upload } = await supabase
@@ -342,6 +481,7 @@ export async function processCarteiraUpload(
       };
     }
 
+    // STEP 8: Now data is clean and validated - proceed with normal processing
     // Create upload record
     const { data: upload, error: uploadError } = await supabase
       .from('uploads_carteira')

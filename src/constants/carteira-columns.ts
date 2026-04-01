@@ -1,11 +1,64 @@
 /**
- * EXACT Excel column names for carteira upload validation.
+ * RAW column names EXACTLY as exported by REC ERP (BEFORE processing).
+ * This is the sequence of non-empty columns after removing __EMPTY columns.
  *
- * CRITICAL: These column names must match EXACTLY as they appear in Excel:
+ * CRITICAL: This is the official raw layout from REC:
+ * - The 1st and 3rd columns are both named "Filial"
+ * - The 3rd "Filial" will be programmatically renamed to "Filial (origem)"
+ * - Validation uses the SEQUENCE of non-empty columns (not sheet indices)
+ * - Total: 38 columns in EXACT order
+ */
+export const COLUNAS_BRUTAS_REC = [
+  'Filial',          // 1 - Filial de roteirização
+  'Romane',          // 2
+  'Filial',          // 3 - DUPLICATE (origem, will be renamed to "Filial (origem)")
+  'Série',           // 4
+  'Nro Doc.',        // 5
+  'Data Des',        // 6
+  'Data NF',         // 7
+  'D.L.E.',          // 8
+  'Agendam.',        // 9
+  'Palet',           // 10
+  'Conf',            // 11
+  'Peso',            // 12
+  'Vlr.Merc.',       // 13
+  'Qtd.',            // 14
+  'Peso C',          // 15
+  'Classifi',        // 16
+  'Tomador',         // 17
+  'Destinatário',    // 18
+  'Bairro',          // 19
+  'Cida',            // 20
+  'UF',              // 21
+  'NF / Serie',      // 22
+  'Tipo Carga',      // 23
+  'Qtd.NF',          // 24
+  'Região',          // 25
+  'Sub-Região',      // 26
+  'Ocorrências NFs', // 27
+  'Remetente',       // 28
+  'Observação R',    // 29
+  'Ref Cliente',     // 30
+  'Cidade Dest.',    // 31
+  'Mesoregião',      // 32
+  'Agenda',          // 33
+  'Tipo C',          // 34
+  'Última',          // 35
+  'Status',          // 36
+  'Lat.',            // 37
+  'Lon.',            // 38
+] as const;
+
+/**
+ * PROCESSED Excel column names for carteira (AFTER processing).
+ * This is the structure AFTER automatic processing of the REC file.
+ *
+ * CRITICAL: These column names must match EXACTLY:
  * - Case sensitive
  * - Space sensitive
  * - Accent sensitive
  * - No normalization allowed
+ * - 3rd column renamed from "Filial" to "Filial (origem)"
  *
  * Total: 38 required columns
  */
