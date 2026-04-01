@@ -256,7 +256,7 @@ export function Roteirizacao() {
 
       const alertMessage = `Roteirização concluída com sucesso!\n\n${resposta.mensagem || 'Processamento finalizado'}`;
       const resumoMsg = resposta.resumo
-        ? `\n\nResumo:\n- Cargas: ${resposta.resumo.total_cargas}\n- Manifestos fechados: ${resposta.resumo.total_manifestos_fechados}\n- Manifestos compostos: ${resposta.resumo.total_manifestos_compostos}\n- Não roteirizados: ${resposta.resumo.total_nao_roteirizados}\n- Taxa de sucesso: ${resposta.resumo.percentual_sucesso.toFixed(1)}%`
+        ? `\n\nResumo:\n- Total carteira: ${resposta.resumo.total_carteira}\n- Total roteirizado: ${resposta.resumo.total_roteirizado}\n- Total não roteirizado: ${resposta.resumo.total_nao_roteirizado}\n- Manifestos fechados: ${resposta.resumo.total_manifestos_fechados}\n- Manifestos compostos: ${resposta.resumo.total_manifestos_compostos}\n- Ocupação média peso: ${resposta.resumo.ocupacao_media_peso.toFixed(1)}%\n- Ocupação média volume: ${resposta.resumo.ocupacao_media_volume.toFixed(1)}%`
         : '';
 
       alert(alertMessage + resumoMsg);

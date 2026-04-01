@@ -45,11 +45,13 @@ export interface RespostaMotor {
   status: 'sucesso' | 'erro' | 'parcial';
   mensagem: string;
   resumo?: {
-    total_cargas: number;
+    total_carteira: number;
+    total_roteirizado: number;
+    total_nao_roteirizado: number;
     total_manifestos_fechados: number;
     total_manifestos_compostos: number;
-    total_nao_roteirizados: number;
-    percentual_sucesso: number;
+    ocupacao_media_peso: number;
+    ocupacao_media_volume: number;
   };
   manifestos_fechados?: any[];
   manifestos_compostos?: any[];
