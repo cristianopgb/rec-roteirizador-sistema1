@@ -7,15 +7,25 @@ import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { Badge } from '../components/ui/Badge';
 import { Table } from '../components/ui/Table';
 import { EmptyState } from '../components/ui/EmptyState';
-import { Upload, CheckCircle, XCircle, AlertCircle, FileText, Download } from 'lucide-react';
+import { Upload, CheckCircle, XCircle, AlertCircle, FileText, Download, Activity } from 'lucide-react';
 import { CarteiraFilters, CarteiraFilterValues } from '../components/carteira/CarteiraFilters';
+import { HistoricoRodadas } from '../components/roteirizacao/HistoricoRodadas';
 import {
   processCarteiraUpload,
   getUploadById,
   getCarteiraItems,
   getRecentUploads,
-  montarPayloadRoteirizacao,
 } from '../services/carteira.service';
+import {
+  verificarHealthMotor,
+  montarPayloadMotor,
+  enviarParaMotorPython,
+  iniciarRodada,
+  salvarPayloadEnviado,
+  salvarRespostaRodada,
+  registrarErroRodada,
+  registrarAuditoriaRoteirizacao,
+} from '../services/roteirizacao.service';
 
 interface UploadStats {
   id: string;
@@ -54,7 +64,11 @@ export function Roteirizacao() {
   const [error, setError] = useState<string | null>(null);
   const [recentUploads, setRecentUploads] = useState<UploadStats[]>([]);
   const [activeFilters, setActiveFilters] = useState<CarteiraFilterValues>({});
-  const [isGeneratingPayload, setIsGeneratingPayload] = useState(false);
+  const [isRoteirizando, setIsRoteirizando] = useState(false);
+  const [statusRodada, setStatusRodada] = useState<string | null>(null);
+  const [mensagemRodada, setMensagemRodada] = useState<string | null>(null);
+  const [respostaMotor, setRespostaMotor] = useState<any>(null);
+  const [isTestingConnection, setIsTestingConnection] = useState(false);
 
   useEffect(() => {
     if (profile?.filial_id) {
@@ -162,44 +176,101 @@ export function Roteirizacao() {
     }
   };
 
+  const handleTestarConexao = async () => {
+    setIsTestingConnection(true);
+    setError(null);
+
+    try {
+      const isHealthy = await verificarHealthMotor();
+
+      if (isHealthy) {
+        alert('Conexão com o motor de roteirização estabelecida com sucesso!');
+      } else {
+        setError('Motor de roteirização está indisponível. Tente novamente mais tarde.');
+      }
+    } catch (err) {
+      setError('Falha ao testar conexão com o motor de roteirização');
+    } finally {
+      setIsTestingConnection(false);
+    }
+  };
+
   const handleGerarRoteirizacao = async () => {
-    if (!currentUpload || !user || !profile) {
+    if (!currentUpload || !user || !profile || !profile.filial_id) {
       setError('Informações necessárias não disponíveis');
       return;
     }
 
-    setIsGeneratingPayload(true);
+    if (currentUpload.total_validas === 0) {
+      setError('Não há linhas válidas para roteirizar');
+      return;
+    }
+
+    setIsRoteirizando(true);
     setError(null);
+    setStatusRodada(null);
+    setMensagemRodada(null);
+    setRespostaMotor(null);
+
+    let rodadaId: string | null = null;
 
     try {
-      const payload = await montarPayloadRoteirizacao(
+      rodadaId = await iniciarRodada(profile.id, profile.filial_id, currentUpload.id);
+      setStatusRodada('iniciado');
+
+      await registrarAuditoriaRoteirizacao('roteirizacao_iniciada', {
+        upload_id: currentUpload.id,
+        rodada_id: rodadaId,
+        total_cargas: currentUpload.total_validas,
+      });
+
+      const payload = await montarPayloadMotor(
         currentUpload.id,
-        user.id,
+        profile.filial_id,
+        profile.id,
         profile.nome,
-        profile.filial_id!,
-        'Filial',
+        profile.filial?.nome || 'Filial',
+        'padrao',
         activeFilters
       );
 
-      console.log('Payload de roteirização gerado:', payload);
+      await salvarPayloadEnviado(rodadaId, payload);
+      setStatusRodada('enviando');
 
-      const jsonStr = JSON.stringify(payload, null, 2);
-      const blob = new Blob([jsonStr], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `roteirizacao_${currentUpload.id}_${new Date().toISOString().split('T')[0]}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      const resposta = await enviarParaMotorPython(payload);
 
-      alert(`Payload gerado com sucesso!\n\nCarteira: ${payload.carteira.length} linhas\nVeículos: ${payload.veiculos.length}\nRegionalidades: ${payload.regionalidades.length}`);
+      await salvarRespostaRodada(rodadaId, resposta);
+      setStatusRodada('processado');
+      setMensagemRodada(resposta.mensagem || 'Roteirização processada com sucesso');
+      setRespostaMotor(resposta);
+
+      await registrarAuditoriaRoteirizacao('roteirizacao_concluida', {
+        upload_id: currentUpload.id,
+        rodada_id: rodadaId,
+        total_cargas: payload.carteira.length,
+        total_veiculos: payload.veiculos.length,
+      });
+
+      alert(`Roteirização concluída com sucesso!\n\n${resposta.mensagem || 'Processamento finalizado'}\n${resposta.total_rotas ? `Total de rotas: ${resposta.total_rotas}` : ''}`);
+
     } catch (err) {
-      console.error('Erro ao gerar payload:', err);
-      setError(err instanceof Error ? err.message : 'Erro ao gerar payload');
+      console.error('Erro ao roteirizar:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Erro ao processar roteirização';
+
+      if (rodadaId) {
+        await registrarErroRodada(rodadaId, errorMessage);
+        await registrarAuditoriaRoteirizacao('roteirizacao_erro', {
+          upload_id: currentUpload.id,
+          rodada_id: rodadaId,
+          erro: errorMessage,
+        });
+      }
+
+      setStatusRodada('erro');
+      setMensagemRodada(errorMessage);
+      setError(errorMessage);
     } finally {
-      setIsGeneratingPayload(false);
+      setIsRoteirizando(false);
     }
   };
 
@@ -409,25 +480,90 @@ export function Roteirizacao() {
               )}
 
               {canGenerateRouting && (
-                <div className="mb-6">
-                  <Button
-                    className="w-full flex items-center justify-center gap-2"
-                    size="lg"
-                    onClick={handleGerarRoteirizacao}
-                    disabled={isGeneratingPayload}
-                  >
-                    {isGeneratingPayload ? (
-                      <>
-                        <LoadingSpinner size="sm" />
-                        Gerando Payload...
-                      </>
-                    ) : (
-                      <>
-                        <Download size={20} />
-                        Gerar Roteirização ({currentUpload.total_validas} linhas válidas)
-                      </>
-                    )}
-                  </Button>
+                <div className="mb-6 space-y-3">
+                  <div className="flex gap-3">
+                    <Button
+                      className="flex-1 flex items-center justify-center gap-2"
+                      size="lg"
+                      onClick={handleGerarRoteirizacao}
+                      disabled={isRoteirizando}
+                    >
+                      {isRoteirizando ? (
+                        <>
+                          <LoadingSpinner size="sm" />
+                          {statusRodada === 'iniciado' && 'Iniciando roteirização...'}
+                          {statusRodada === 'enviando' && 'Enviando para motor...'}
+                          {!statusRodada && 'Roteirizando...'}
+                        </>
+                      ) : (
+                        <>
+                          <Download size={20} />
+                          Gerar Roteirização ({currentUpload.total_validas} linhas válidas)
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={handleTestarConexao}
+                      disabled={isTestingConnection || isRoteirizando}
+                      className="flex items-center gap-2"
+                    >
+                      {isTestingConnection ? (
+                        <>
+                          <LoadingSpinner size="sm" />
+                          Testando...
+                        </>
+                      ) : (
+                        <>
+                          <Activity size={20} />
+                          Testar Conexão
+                        </>
+                      )}
+                    </Button>
+                  </div>
+
+                  {statusRodada === 'processado' && mensagemRodada && (
+                    <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                      <div className="flex items-start gap-3">
+                        <CheckCircle className="text-green-600 flex-shrink-0" size={20} />
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-green-900">Roteirização Concluída</h3>
+                          <p className="text-sm text-green-800 mt-1">{mensagemRodada}</p>
+                          {respostaMotor && (
+                            <button
+                              onClick={() => {
+                                const jsonStr = JSON.stringify(respostaMotor, null, 2);
+                                const blob = new Blob([jsonStr], { type: 'application/json' });
+                                const url = URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = `resposta_motor_${new Date().toISOString()}.json`;
+                                document.body.appendChild(a);
+                                a.click();
+                                document.body.removeChild(a);
+                                URL.revokeObjectURL(url);
+                              }}
+                              className="mt-3 text-sm text-green-700 underline hover:text-green-900"
+                            >
+                              Baixar resposta completa (JSON)
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {statusRodada === 'erro' && mensagemRodada && (
+                    <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                      <div className="flex items-start gap-3">
+                        <XCircle className="text-red-600 flex-shrink-0" size={20} />
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-red-900">Erro ao Roteirizar</h3>
+                          <p className="text-sm text-red-800 mt-1">{mensagemRodada}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -511,6 +647,10 @@ export function Roteirizacao() {
                 title="Nenhum dado encontrado"
                 description="Não há dados para exibir"
               />
+            )}
+
+            {!hasStructureError && (
+              <HistoricoRodadas />
             )}
           </>
         )}
