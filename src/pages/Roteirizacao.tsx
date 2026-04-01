@@ -219,6 +219,7 @@ export function Roteirizacao() {
       setStatusRodada('iniciado');
 
       await registrarAuditoriaRoteirizacao('roteirizacao_iniciada', {
+        usuario_id: profile.id,
         upload_id: currentUpload.id,
         rodada_id: rodadaId,
         total_cargas: currentUpload.total_validas,
@@ -245,13 +246,20 @@ export function Roteirizacao() {
       setRespostaMotor(resposta);
 
       await registrarAuditoriaRoteirizacao('roteirizacao_concluida', {
+        usuario_id: profile.id,
         upload_id: currentUpload.id,
         rodada_id: rodadaId,
         total_cargas: payload.carteira.length,
         total_veiculos: payload.veiculos.length,
+        status_resposta: resposta.status,
       });
 
-      alert(`Roteirização concluída com sucesso!\n\n${resposta.mensagem || 'Processamento finalizado'}\n${resposta.total_rotas ? `Total de rotas: ${resposta.total_rotas}` : ''}`);
+      const alertMessage = `Roteirização concluída com sucesso!\n\n${resposta.mensagem || 'Processamento finalizado'}`;
+      const resumoMsg = resposta.resumo
+        ? `\n\nResumo:\n- Cargas: ${resposta.resumo.total_cargas}\n- Manifestos fechados: ${resposta.resumo.total_manifestos_fechados}\n- Manifestos compostos: ${resposta.resumo.total_manifestos_compostos}\n- Não roteirizados: ${resposta.resumo.total_nao_roteirizados}\n- Taxa de sucesso: ${resposta.resumo.percentual_sucesso.toFixed(1)}%`
+        : '';
+
+      alert(alertMessage + resumoMsg);
 
     } catch (err) {
       console.error('Erro ao roteirizar:', err);
@@ -260,6 +268,7 @@ export function Roteirizacao() {
       if (rodadaId) {
         await registrarErroRodada(rodadaId, errorMessage);
         await registrarAuditoriaRoteirizacao('roteirizacao_erro', {
+          usuario_id: profile.id,
           upload_id: currentUpload.id,
           rodada_id: rodadaId,
           erro: errorMessage,

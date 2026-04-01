@@ -42,10 +42,19 @@ export interface PayloadMotor {
 }
 
 export interface RespostaMotor {
-  sucesso: boolean;
+  status: 'sucesso' | 'erro' | 'parcial';
   mensagem: string;
-  total_rotas?: number;
-  dados?: any;
+  resumo?: {
+    total_cargas: number;
+    total_manifestos_fechados: number;
+    total_manifestos_compostos: number;
+    total_nao_roteirizados: number;
+    percentual_sucesso: number;
+  };
+  manifestos_fechados?: any[];
+  manifestos_compostos?: any[];
+  nao_roteirizados?: any[];
+  logs?: string[];
 }
 
 export async function verificarHealthMotor(): Promise<boolean> {
@@ -72,20 +81,19 @@ export async function buscarCarteiraValida(
 ): Promise<Array<Record<string, any>>> {
   let query = supabase
     .from('carteira_itens')
-    .select('dados_linha')
+    .select('*')
     .eq('upload_id', uploadId)
     .eq('status_validacao', 'valida');
 
-  // Apply filters if provided
   if (filtros) {
     if (filtros.uf) {
-      query = query.contains('dados_linha', { UF: filtros.uf });
+      query = query.eq('uf', filtros.uf);
     }
     if (filtros.cidade) {
-      query = query.contains('dados_linha', { Cida: filtros.cidade });
+      query = query.eq('cida', filtros.cidade);
     }
     if (filtros.filial) {
-      query = query.contains('dados_linha', { Filial: filtros.filial });
+      query = query.eq('filial', filtros.filial);
     }
   }
 
@@ -96,26 +104,46 @@ export async function buscarCarteiraValida(
   }
 
   return (data || []).map(item => {
-    const mappedItem: Record<string, any> = {};
-
-    // Map all 38 required columns, preserving absence of data
-    COLUNAS_OBRIGATORIAS_EXCEL.forEach(coluna => {
-      const valor = item.dados_linha[coluna];
-
-      // Preserve null for missing numeric values
-      if (valor === undefined || valor === null) {
-        // For numeric columns, keep as null
-        if (['Peso', 'Vlr.Merc.', 'Qtd.', 'Peso C', 'Qtd.NF', 'Lat.', 'Lon.'].includes(coluna)) {
-          mappedItem[coluna] = null;
-        } else {
-          // For string columns, use empty string or null based on semantics
-          mappedItem[coluna] = coluna === 'Observação R' || coluna === 'Ref Cliente' ? null : '';
-        }
-      } else {
-        // Preserve original value without conversion
-        mappedItem[coluna] = valor;
-      }
-    });
+    const mappedItem: Record<string, any> = {
+      'Filial': item.filial ?? '',
+      'Romane': item.romane ?? '',
+      'Filial (origem)': item.filial_origem ?? '',
+      'Série': item.serie ?? '',
+      'Nro Doc.': item.nro_doc ?? '',
+      'Data Des': item.data_des ?? '',
+      'Data NF': item.data_nf ?? '',
+      'D.L.E.': item.dle ?? '',
+      'Agendam.': item.agendam ?? '',
+      'Palet': item.palet ?? '',
+      'Conf': item.conf ?? '',
+      'Peso': item.peso,
+      'Vlr.Merc.': item.vlr_merc,
+      'Qtd.': item.qtd,
+      'Peso C': item.peso_c,
+      'Classifi': item.classifi ?? '',
+      'Tomador': item.tomador ?? '',
+      'Destinatário': item.destinatario ?? '',
+      'Bairro': item.bairro ?? '',
+      'Cida': item.cida ?? '',
+      'UF': item.uf ?? '',
+      'NF / Serie': item.nf_serie ?? '',
+      'Tipo Carga': item.tipo_carga ?? '',
+      'Qtd.NF': item.qtd_nf,
+      'Região': item.regiao ?? '',
+      'Sub-Região': item.sub_regiao ?? '',
+      'Ocorrências NFs': item.ocorrencias_nfs ?? '',
+      'Remetente': item.remetente ?? '',
+      'Observação R': item.observacao_r,
+      'Ref Cliente': item.ref_cliente,
+      'Cidade Dest.': item.cidade_dest ?? '',
+      'Mesoregião': item.mesoregiao ?? '',
+      'Agenda': item.agenda ?? '',
+      'Tipo C': item.tipo_c ?? '',
+      'Última': item.ultima ?? '',
+      'Status': item.status ?? '',
+      'Lat.': item.lat,
+      'Lon.': item.lon,
+    };
 
     return mappedItem;
   });
@@ -353,6 +381,21 @@ export async function registrarAuditoriaRoteirizacao(
   acao: 'roteirizacao_iniciada' | 'roteirizacao_concluida' | 'roteirizacao_erro',
   metadados: Record<string, any>
 ): Promise<void> {
-  // This function can be implemented when audit table is created
-  console.log('Auditoria:', acao, metadados);
+  try {
+    const { error } = await supabase
+      .from('auditoria_roteirizacao')
+      .insert({
+        acao,
+        usuario_id: metadados.usuario_id || null,
+        upload_id: metadados.upload_id || null,
+        rodada_id: metadados.rodada_id || null,
+        metadados,
+      });
+
+    if (error) {
+      console.error('Erro ao registrar auditoria:', error);
+    }
+  } catch (err) {
+    console.error('Falha ao registrar auditoria:', err);
+  }
 }
