@@ -62,34 +62,6 @@ function validarOrdemExataBruta(headers: string[]): StructureValidationResult {
   return { valid: true };
 }
 
-/**
- * Rename the SECOND occurrence of "Filial" column to "Filial (origem)".
- * In the cleaned sequence, the first "Filial" stays as is, the second "Filial" becomes "Filial (origem)".
- */
-function renomearSegundaFilial(data: any[]): any[] {
-  if (data.length === 0) return data;
-
-  return data.map(row => {
-    const newRow: any = {};
-    const keys = Object.keys(row);
-    let filialCount = 0;
-
-    keys.forEach((key) => {
-      if (key === 'Filial') {
-        filialCount++;
-        if (filialCount === 1) {
-          newRow['Filial'] = row[key];
-        } else if (filialCount === 2) {
-          newRow['Filial (origem)'] = row[key];
-        }
-      } else {
-        newRow[key] = row[key];
-      }
-    });
-
-    return newRow;
-  });
-}
 
 interface UploadResult {
   success: boolean;
@@ -317,12 +289,23 @@ function parseDate(value: any): string | undefined {
 /**
  * Extract ALL 38 columns from row data for database storage.
  * Maps Excel column names to database column names.
+ *
+ * CRITICAL: Handles duplicate "Filial" columns by position:
+ * - Position 0 (1st column) = filial (filial de roteirização)
+ * - Position 2 (3rd column) = filial_origem (filial de onde a carga chegou)
  */
-function extractTypedColumns(row: Partial<CarteiraExcelRow>) {
+function extractTypedColumns(row: any) {
+  // Get all keys to access by position for duplicate "Filial" columns
+  const keys = Object.keys(row);
+
+  // Extract the two "Filial" values by position
+  const filial = keys[0] === 'Filial' && row[keys[0]] ? String(row[keys[0]]) : undefined;
+  const filialOrigem = keys[2] === 'Filial' && row[keys[2]] ? String(row[keys[2]]) : undefined;
+
   return {
-    filial: row['Filial'] ? String(row['Filial']) : undefined,
+    filial,
     romane: row['Romane'] ? String(row['Romane']) : undefined,
-    filial_origem: row['Filial (origem)'] ? String(row['Filial (origem)']) : undefined,
+    filial_origem: filialOrigem,
     serie: row['Série'] ? String(row['Série']) : undefined,
     nro_doc: row['Nro Doc.'] ? String(row['Nro Doc.']) : undefined,
     data_des: parseDate(row['Data Des']),
@@ -369,9 +352,7 @@ function extractTypedColumns(row: Partial<CarteiraExcelRow>) {
  * 1. Read raw Excel file starting from row 5 (L5)
  * 2. Remove empty columns (__EMPTY*)
  * 3. Validate exact sequence of 38 non-empty columns
- * 4. Rename second "Filial" to "Filial (origem)"
- * 5. Validate final structure
- * 6. Process and persist data
+ * 4. Process and persist data (NO renaming - columns stay as exported)
  */
 export async function processCarteiraUpload(
   file: File,
@@ -406,54 +387,8 @@ export async function processCarteiraUpload(
     const rawHeaders = Object.keys(jsonData[0]);
     const cleanedHeaders = removerColunasVazias(rawHeaders);
 
-    // STEP 3: Validate exact sequence of 38 non-empty columns (before renaming)
-    const rawValidation = validarOrdemExataBruta(cleanedHeaders);
-    if (!rawValidation.valid) {
-      // Create upload record with error
-      const { data: upload } = await supabase
-        .from('uploads_carteira')
-        .insert({
-          nome_arquivo: file.name,
-          usuario_id: usuarioId,
-          filial_id: filialId,
-          total_linhas: 0,
-          total_validas: 0,
-          total_invalidas: 0,
-          status: 'erro',
-          erro_estrutura: rawValidation.errorMessage,
-        })
-        .select()
-        .single();
-
-      return {
-        success: false,
-        uploadId: upload?.id,
-        total_linhas: 0,
-        total_validas: 0,
-        total_invalidas: 0,
-        error: rawValidation.errorMessage,
-      };
-    }
-
-    // STEP 4: Remove empty columns from all data rows
-    jsonData = jsonData.map(row => {
-      const cleanedRow: any = {};
-      Object.keys(row).forEach(key => {
-        if (!key.startsWith('__EMPTY')) {
-          cleanedRow[key] = row[key];
-        }
-      });
-      return cleanedRow;
-    });
-
-    // STEP 5: Rename second "Filial" to "Filial (origem)"
-    jsonData = renomearSegundaFilial(jsonData);
-
-    // STEP 6: Extract processed headers
-    const processedHeaders = Object.keys(jsonData[0]);
-
-    // STEP 7: Validate final structure (after renaming)
-    const structureValidation = validateExcelStructure(processedHeaders);
+    // STEP 3: Validate exact sequence of 38 non-empty columns
+    const structureValidation = validarOrdemExataBruta(cleanedHeaders);
     if (!structureValidation.valid) {
       // Create upload record with error
       const { data: upload } = await supabase
@@ -481,7 +416,18 @@ export async function processCarteiraUpload(
       };
     }
 
-    // STEP 8: Now data is clean and validated - proceed with normal processing
+    // STEP 4: Remove empty columns from all data rows
+    jsonData = jsonData.map(row => {
+      const cleanedRow: any = {};
+      Object.keys(row).forEach(key => {
+        if (!key.startsWith('__EMPTY')) {
+          cleanedRow[key] = row[key];
+        }
+      });
+      return cleanedRow;
+    });
+
+    // STEP 5: Data is now clean and validated - proceed with processing
     // Create upload record
     const { data: upload, error: uploadError } = await supabase
       .from('uploads_carteira')

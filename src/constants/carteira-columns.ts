@@ -1,17 +1,19 @@
 /**
- * RAW column names EXACTLY as exported by REC ERP (BEFORE processing).
+ * RAW column names EXACTLY as exported by REC ERP.
  * This is the sequence of non-empty columns after removing __EMPTY columns.
  *
  * CRITICAL: This is the official raw layout from REC:
- * - The 1st and 3rd columns are both named "Filial"
- * - The 3rd "Filial" will be programmatically renamed to "Filial (origem)"
+ * - The 1st and 3rd columns are BOTH named "Filial" (not a typo!)
+ * - First "Filial" = filial de roteirização (onde será feita a roteirização)
+ * - Third "Filial" = filial de origem (de onde a carga chegou)
+ * - NO renaming occurs - columns stay exactly as exported from ERP
  * - Validation uses the SEQUENCE of non-empty columns (not sheet indices)
  * - Total: 38 columns in EXACT order
  */
 export const COLUNAS_BRUTAS_REC = [
   'Filial',          // 1 - Filial de roteirização
   'Romane',          // 2
-  'Filial',          // 3 - DUPLICATE (origem, will be renamed to "Filial (origem)")
+  'Filial',          // 3 - Filial de origem (mesmo nome, dados diferentes)
   'Série',           // 4
   'Nro Doc.',        // 5
   'Data Des',        // 6
@@ -50,22 +52,22 @@ export const COLUNAS_BRUTAS_REC = [
 ] as const;
 
 /**
- * PROCESSED Excel column names for carteira (AFTER processing).
- * This is the structure AFTER automatic processing of the REC file.
+ * Expected column names for carteira validation.
+ * IDENTICAL to COLUNAS_BRUTAS_REC - no transformation occurs.
  *
  * CRITICAL: These column names must match EXACTLY:
  * - Case sensitive
  * - Space sensitive
  * - Accent sensitive
  * - No normalization allowed
- * - 3rd column renamed from "Filial" to "Filial (origem)"
+ * - NO renaming - third column stays as "Filial"
  *
  * Total: 38 required columns
  */
 export const COLUNAS_OBRIGATORIAS_EXCEL = [
   'Filial',
   'Romane',
-  'Filial (origem)',
+  'Filial',
   'Série',
   'Nro Doc.',
   'Data Des',
@@ -126,12 +128,11 @@ export const EXCEL_TO_DB_MAP: Record<string, string> = {
 
 /**
  * Type representing a single row from the carteira Excel file.
- * Uses exact column names as they appear in Excel.
+ * Since 'Filial' appears twice in the raw data, we use Partial<Record> to handle dynamic keys.
+ * Access via array notation: row['Filial'] returns first occurrence.
  */
-export type CarteiraExcelRow = {
-  'Filial': string;
+export type CarteiraExcelRow = Partial<Record<string, any>> & {
   'Romane': string;
-  'Filial (origem)': string;
   'Série': string;
   'Nro Doc.': string;
   'Data Des': string;
