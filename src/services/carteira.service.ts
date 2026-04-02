@@ -550,20 +550,29 @@ export async function processCarteiraUpload(
   filialId: string
 ): Promise<UploadResult> {
   try {
-    // STEP 1: Read raw file starting from row 5 (L5 - where data begins)
+    // ============================================================================
+    // STEP 1: Read Excel in RAW MODE (array of arrays) to avoid truncation
+    // ============================================================================
     const arrayBuffer = await file.arrayBuffer();
-    const workbook = XLSX.read(arrayBuffer, { raw: false, defval: '' });
+    const workbook = XLSX.read(arrayBuffer, {
+      type: 'array',
+      cellDates: true,
+      raw: true,
+      dense: true,
+    });
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
 
-    // Convert to JSON starting from row 5 (header row in REC file)
-    let jsonData = XLSX.utils.sheet_to_json(worksheet, {
-      raw: false,
-      defval: '',
+    // Convert to array of arrays (NOT object mode) starting from row 5 (header row)
+    const rawData = XLSX.utils.sheet_to_json(worksheet, {
+      header: 1, // Return arrays instead of objects
+      raw: true, // Keep raw cell values
+      defval: null, // Use null for empty cells
+      blankrows: false, // Skip blank rows
       range: 4, // Start from row 5 (0-indexed, so row 5 = index 4)
-    }) as any[];
+    }) as any[][];
 
-    if (jsonData.length === 0) {
+    if (rawData.length === 0) {
       return {
         success: false,
         total_linhas: 0,
@@ -573,22 +582,53 @@ export async function processCarteiraUpload(
       };
     }
 
-    // STEP 2: Extract raw headers from first data row and remove invalid columns
-    const rawHeaders = Object.keys(jsonData[0]);
-    console.log('[DEBUG] 1. Headers brutos originais:', rawHeaders.length, rawHeaders);
+    // ============================================================================
+    // STEP 2: Extract and process header row (first row of rawData)
+    // ============================================================================
+    const rawHeaderRow = rawData[0];
+    if (!rawHeaderRow || rawHeaderRow.length === 0) {
+      return {
+        success: false,
+        total_linhas: 0,
+        total_validas: 0,
+        total_invalidas: 0,
+        error: 'Linha de cabeçalho não encontrada',
+      };
+    }
 
-    const cleanedHeaders = removerColunasVazias(rawHeaders);
-    console.log('[DEBUG] 2. Headers após remoção de colunas vazias:', cleanedHeaders.length, cleanedHeaders);
+    console.log('[DEBUG] 1. Headers brutos originais (total:', rawHeaderRow.length, ')');
 
-    // STEP 2.5: Normalize header names (trim, collapse spaces, remove technical suffixes)
-    const normalizedHeaders = cleanedHeaders.map(h => normalizeHeaderName(h));
-    console.log('[DEBUG] 3. Headers após normalização:', normalizedHeaders.length, normalizedHeaders);
+    // ============================================================================
+    // STEP 3: Remove invalid columns by index and build valid column mapping
+    // ============================================================================
+    const validColumnIndices: number[] = [];
+    const rawHeaders: string[] = [];
 
-    // STEP 2.6: Rename the 2nd "Filial" to "Filial (origem)"
+    rawHeaderRow.forEach((header: any, index: number) => {
+      if (!isInvalidColumnName(header)) {
+        validColumnIndices.push(index);
+        rawHeaders.push(String(header || ''));
+      }
+    });
+
+    console.log('[DEBUG] 2. Índices válidos:', validColumnIndices);
+    console.log('[DEBUG] 3. Headers após remoção de colunas vazias:', rawHeaders.length, rawHeaders);
+
+    // ============================================================================
+    // STEP 4: Normalize header names
+    // ============================================================================
+    const normalizedHeaders = rawHeaders.map(h => normalizeHeaderName(h));
+    console.log('[DEBUG] 4. Headers após normalização:', normalizedHeaders.length, normalizedHeaders);
+
+    // ============================================================================
+    // STEP 5: Rename the 2nd "Filial" to "Filial (origem)"
+    // ============================================================================
     const renamedHeaders = renomearFilialOrigem(normalizedHeaders);
-    console.log('[DEBUG] 4. Headers finais após renomeação:', renamedHeaders.length, renamedHeaders);
+    console.log('[DEBUG] 5. Headers finais após renomeação:', renamedHeaders.length, renamedHeaders);
 
-    // STEP 3: Validate exact sequence of 38 non-empty columns
+    // ============================================================================
+    // STEP 6: Validate exact sequence of 38 non-empty columns
+    // ============================================================================
     const structureValidation = validarOrdemExataBruta(renamedHeaders);
     if (!structureValidation.valid) {
       // Create upload record with error
@@ -617,31 +657,26 @@ export async function processCarteiraUpload(
       };
     }
 
-    // STEP 4: Remove invalid columns, normalize headers, and rename "Filial" columns in all data rows
-    jsonData = jsonData.map(row => {
-      const cleanedRow: any = {};
-      let filialCount = 0;
+    // ============================================================================
+    // STEP 7: Process data rows using column indices (not object keys)
+    // ============================================================================
+    const dataRows = rawData.slice(1); // Skip header row
+    const jsonData: any[] = [];
 
-      Object.keys(row).forEach(key => {
-        if (!isInvalidColumnName(key)) {
-          // Normalize the key name
-          const normalizedKey = normalizeHeaderName(key);
+    for (const rawRow of dataRows) {
+      const rowObject: any = {};
 
-          // Rename the 2nd "Filial" to "Filial (origem)"
-          if (normalizedKey === 'Filial') {
-            filialCount++;
-            if (filialCount === 2) {
-              cleanedRow['Filial (origem)'] = row[key];
-            } else {
-              cleanedRow[normalizedKey] = row[key];
-            }
-          } else {
-            cleanedRow[normalizedKey] = row[key];
-          }
-        }
+      // Map each valid column by index
+      validColumnIndices.forEach((colIndex, mappingIndex) => {
+        const headerName = renamedHeaders[mappingIndex];
+        const cellValue = rawRow[colIndex];
+        rowObject[headerName] = cellValue;
       });
-      return cleanedRow;
-    });
+
+      jsonData.push(rowObject);
+    }
+
+    console.log('[DEBUG] 6. Total de linhas de dados processadas:', jsonData.length);
 
     // STEP 5: Data is now clean and validated - proceed with processing
     // Create upload record
@@ -669,44 +704,46 @@ export async function processCarteiraUpload(
     for (let i = 0; i < jsonData.length; i++) {
       const row = jsonData[i];
 
-      // Log raw values from first row for debugging
-      if (i === 0) {
-        console.log('\n[DEBUG] ========== VALORES BRUTOS DA PRIMEIRA LINHA ==========');
-        console.log('[DEBUG] ROMANE:', row['Romane']);
+      // Log raw values for ROMANE 564
+      if (row['Romane'] === '564') {
+        console.log('\n[DEBUG] ========== ROMANE 564 - VALORES BRUTOS ==========');
         console.log('[DEBUG] Datas:');
-        console.log('  - Data Des (bruto):', row['Data Des'], '(tipo:', typeof row['Data Des'], ')');
-        console.log('  - Data NF (bruto):', row['Data NF'], '(tipo:', typeof row['Data NF'], ')');
-        console.log('  - D.L.E. (bruto):', row['D.L.E.'], '(tipo:', typeof row['D.L.E.'], ')');
-        console.log('  - Agendam. (bruto):', row['Agendam.'], '(tipo:', typeof row['Agendam.'], ')');
-        console.log('  - Agenda (bruto):', row['Agenda'], '(tipo:', typeof row['Agenda'], ')');
+        console.log('  - Data Des:', row['Data Des'], '(tipo:', typeof row['Data Des'], ')');
+        console.log('  - Data NF:', row['Data NF'], '(tipo:', typeof row['Data NF'], ')');
+        console.log('  - D.L.E.:', row['D.L.E.'], '(tipo:', typeof row['D.L.E.'], ')');
+        console.log('  - Agendam.:', row['Agendam.'], '(tipo:', typeof row['Agendam.'], ')');
         console.log('[DEBUG] Números:');
-        console.log('  - Peso (bruto):', row['Peso'], '(tipo:', typeof row['Peso'], ')');
-        console.log('  - Vlr.Merc. (bruto):', row['Vlr.Merc.'], '(tipo:', typeof row['Vlr.Merc.'], ')');
-        console.log('  - Peso C (bruto):', row['Peso C'], '(tipo:', typeof row['Peso C'], ')');
+        console.log('  - Peso:', row['Peso'], '(tipo:', typeof row['Peso'], ')');
+        console.log('  - Vlr.Merc.:', row['Vlr.Merc.'], '(tipo:', typeof row['Vlr.Merc.'], ')');
+        console.log('  - Peso C:', row['Peso C'], '(tipo:', typeof row['Peso C'], ')');
+        console.log('[DEBUG] Coordenadas:');
+        console.log('  - Lat.:', row['Lat.'], '(tipo:', typeof row['Lat.'], ')');
+        console.log('  - Lon.:', row['Lon.'], '(tipo:', typeof row['Lon.'], ')');
       }
 
       const validation = validateCarteiraRow(row);
       const typedColumns = extractTypedColumns(row);
 
-      // Log converted values from first row
-      if (i === 0) {
-        console.log('\n[DEBUG] ========== VALORES CONVERTIDOS DA PRIMEIRA LINHA ==========');
-        console.log('[DEBUG] ROMANE:', typedColumns.romane);
+      // Log converted values for ROMANE 564
+      if (row['Romane'] === '564') {
+        console.log('\n[DEBUG] ========== ROMANE 564 - VALORES FINAIS ==========');
         console.log('[DEBUG] Datas:');
-        console.log('  - data_des (convertido):', typedColumns.data_des);
-        console.log('  - data_nf (convertido):', typedColumns.data_nf);
-        console.log('  - dle (convertido):', typedColumns.dle);
-        console.log('  - agendam (convertido):', typedColumns.agendam);
-        console.log('  - agenda (convertido):', typedColumns.agenda);
+        console.log('  - data_des:', typedColumns.data_des);
+        console.log('  - data_nf:', typedColumns.data_nf);
+        console.log('  - dle:', typedColumns.dle);
+        console.log('  - agendam:', typedColumns.agendam);
         console.log('[DEBUG] Números:');
-        console.log('  - peso (convertido):', typedColumns.peso);
-        console.log('  - vlr_merc (convertido):', typedColumns.vlr_merc);
-        console.log('  - peso_c (convertido):', typedColumns.peso_c);
+        console.log('  - peso:', typedColumns.peso);
+        console.log('  - vlr_merc:', typedColumns.vlr_merc);
+        console.log('  - peso_c:', typedColumns.peso_c);
+        console.log('[DEBUG] Coordenadas:');
+        console.log('  - lat:', typedColumns.lat);
+        console.log('  - lon:', typedColumns.lon);
       }
 
       items.push({
         upload_id: upload.id,
-        linha_numero: i + 2, // +2 because Excel is 1-indexed and row 1 is header
+        linha_numero: i + 6, // Header is row 5, data starts at row 6
         status_validacao: validation.status,
         erro_validacao: validation.erro,
         ...typedColumns,
@@ -719,24 +756,23 @@ export async function processCarteiraUpload(
       }
     }
 
-    // Log specific romane 432 before insert
-    const romane432 = items.find(item => item.romane === '432');
-    if (romane432) {
-      console.log('\n[DEBUG] ========== ROMANE 432 - DADOS ANTES DO INSERT ==========');
-      console.log('[DEBUG] linha_numero:', romane432.linha_numero);
+    // Log specific romane 564 before insert
+    const romane564 = items.find(item => item.romane === '564');
+    if (romane564) {
+      console.log('\n[DEBUG] ========== ROMANE 564 - DADOS ANTES DO INSERT ==========');
+      console.log('[DEBUG] linha_numero:', romane564.linha_numero);
       console.log('[DEBUG] Datas:');
-      console.log('  - data_des:', romane432.data_des);
-      console.log('  - data_nf:', romane432.data_nf);
-      console.log('  - dle:', romane432.dle);
-      console.log('  - agendam:', romane432.agendam);
-      console.log('  - agenda:', romane432.agenda);
+      console.log('  - data_des:', romane564.data_des);
+      console.log('  - data_nf:', romane564.data_nf);
+      console.log('  - dle:', romane564.dle);
+      console.log('  - agendam:', romane564.agendam);
       console.log('[DEBUG] Números:');
-      console.log('  - peso:', romane432.peso);
-      console.log('  - vlr_merc:', romane432.vlr_merc);
-      console.log('  - peso_c:', romane432.peso_c);
-      console.log('[DEBUG] Outros:');
-      console.log('  - tipo_c:', romane432.tipo_c);
-      console.log('  - ultima:', romane432.ultima);
+      console.log('  - peso:', romane564.peso);
+      console.log('  - vlr_merc:', romane564.vlr_merc);
+      console.log('  - peso_c:', romane564.peso_c);
+      console.log('[DEBUG] Coordenadas:');
+      console.log('  - lat:', romane564.lat);
+      console.log('  - lon:', romane564.lon);
     }
 
     // Insert items in batches
@@ -800,30 +836,29 @@ export async function processCarteiraUpload(
       }
     }
 
-    // Validate romane 432 after insert
-    if (romane432) {
-      const { data: savedRomane432, error: queryError } = await supabase
+    // Validate romane 564 after insert
+    if (romane564) {
+      const { data: savedRomane564, error: queryError } = await supabase
         .from('carteira_itens')
-        .select('romane, data_des, data_nf, dle, agendam, agenda, peso, vlr_merc, peso_c, tipo_c, ultima')
-        .eq('romane', '432')
+        .select('romane, data_des, data_nf, dle, agendam, peso, vlr_merc, peso_c, lat, lon')
+        .eq('romane', '564')
         .eq('upload_id', upload.id)
         .maybeSingle();
 
-      if (!queryError && savedRomane432) {
-        console.log('\n[DEBUG] ========== ROMANE 432 - COMPARAÇÃO ANTES/DEPOIS ==========');
+      if (!queryError && savedRomane564) {
+        console.log('\n[DEBUG] ========== ROMANE 564 - COMPARAÇÃO ANTES/DEPOIS ==========');
         console.log('[DEBUG] Datas:');
-        console.log('  - data_des    | Enviado:', romane432.data_des, '| Salvo:', savedRomane432.data_des);
-        console.log('  - data_nf     | Enviado:', romane432.data_nf, '| Salvo:', savedRomane432.data_nf);
-        console.log('  - dle         | Enviado:', romane432.dle, '| Salvo:', savedRomane432.dle);
-        console.log('  - agendam     | Enviado:', romane432.agendam, '| Salvo:', savedRomane432.agendam);
-        console.log('  - agenda      | Enviado:', romane432.agenda, '| Salvo:', savedRomane432.agenda);
+        console.log('  - data_des    | Enviado:', romane564.data_des, '| Salvo:', savedRomane564.data_des);
+        console.log('  - data_nf     | Enviado:', romane564.data_nf, '| Salvo:', savedRomane564.data_nf);
+        console.log('  - dle         | Enviado:', romane564.dle, '| Salvo:', savedRomane564.dle);
+        console.log('  - agendam     | Enviado:', romane564.agendam, '| Salvo:', savedRomane564.agendam);
         console.log('[DEBUG] Números:');
-        console.log('  - peso        | Enviado:', romane432.peso, '| Salvo:', savedRomane432.peso);
-        console.log('  - vlr_merc    | Enviado:', romane432.vlr_merc, '| Salvo:', savedRomane432.vlr_merc);
-        console.log('  - peso_c      | Enviado:', romane432.peso_c, '| Salvo:', savedRomane432.peso_c);
-        console.log('[DEBUG] Outros:');
-        console.log('  - tipo_c      | Enviado:', romane432.tipo_c, '| Salvo:', savedRomane432.tipo_c);
-        console.log('  - ultima      | Enviado:', romane432.ultima, '| Salvo:', savedRomane432.ultima);
+        console.log('  - peso        | Enviado:', romane564.peso, '| Salvo:', savedRomane564.peso);
+        console.log('  - vlr_merc    | Enviado:', romane564.vlr_merc, '| Salvo:', savedRomane564.vlr_merc);
+        console.log('  - peso_c      | Enviado:', romane564.peso_c, '| Salvo:', savedRomane564.peso_c);
+        console.log('[DEBUG] Coordenadas:');
+        console.log('  - lat         | Enviado:', romane564.lat, '| Salvo:', savedRomane564.lat);
+        console.log('  - lon         | Enviado:', romane564.lon, '| Salvo:', savedRomane564.lon);
       }
     }
 
