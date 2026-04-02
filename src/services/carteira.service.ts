@@ -189,10 +189,10 @@ interface CarteiraItem {
   filial_origem?: string;
   serie?: string;
   nro_doc?: string;
-  data_des?: string;
-  data_nf?: string;
-  dle?: string;
-  agendam?: string;
+  data_des?: string | null;
+  data_nf?: string | null;
+  dle?: string | null;
+  agendam?: string | null;
   palet?: string;
   conf?: string;
   peso?: number;
@@ -305,26 +305,129 @@ function parseNumber(value: any): number | undefined {
 }
 
 /**
- * Safely parse a date value.
+ * Robustly normalize date values from Excel to PostgreSQL ISO format (YYYY-MM-DD).
+ *
+ * Handles:
+ * - null/undefined/empty strings → null
+ * - JavaScript Date objects → YYYY-MM-DD
+ * - Excel serial numbers (e.g., 45329) → YYYY-MM-DD
+ * - DD/MM/YYYY or D/M/YYYY strings → YYYY-MM-DD
+ * - YYYY-MM-DD strings → validated and returned
+ * - Invalid dates → null
+ *
+ * @param value - The date value from Excel (can be string, number, Date, null, undefined)
+ * @param columnName - Optional column name for detailed error logging
+ * @returns ISO date string (YYYY-MM-DD) or null if invalid/empty
  */
-function parseDate(value: any): string | undefined {
-  if (!value) return undefined;
-
-  // If it's already a Date object
-  if (value instanceof Date) {
-    return value.toISOString().split('T')[0];
+function normalizeDateValue(value: any, columnName?: string): string | null {
+  // Handle null, undefined, empty string
+  if (value === null || value === undefined || value === '') {
+    return null;
   }
 
-  // If it's a string in dd/mm/yyyy format
-  if (typeof value === 'string') {
-    const parts = value.split('/');
-    if (parts.length === 3) {
-      const [day, month, year] = parts;
-      return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  try {
+    // Case 1: JavaScript Date object
+    if (value instanceof Date) {
+      if (isNaN(value.getTime())) {
+        console.warn(`[normalizeDateValue] Invalid Date object for column "${columnName}":`, value);
+        return null;
+      }
+      return value.toISOString().split('T')[0];
     }
-  }
 
-  return undefined;
+    // Case 2: Excel serial number (number between 1 and 100000)
+    if (typeof value === 'number') {
+      // Excel serial date: days since 1900-01-01 (with bugs for 1900 leap year)
+      if (value > 0 && value < 100000) {
+        // Excel incorrectly treats 1900 as a leap year, so we adjust
+        const excelEpoch = new Date(1899, 11, 30); // Dec 30, 1899
+        const date = new Date(excelEpoch.getTime() + value * 24 * 60 * 60 * 1000);
+        if (isNaN(date.getTime())) {
+          console.warn(`[normalizeDateValue] Invalid Excel serial number for column "${columnName}": ${value}`);
+          return null;
+        }
+        return date.toISOString().split('T')[0];
+      } else {
+        console.warn(`[normalizeDateValue] Number out of Excel date range for column "${columnName}": ${value}`);
+        return null;
+      }
+    }
+
+    // Case 3: String formats
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+
+      // Already in YYYY-MM-DD format?
+      if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+        const testDate = new Date(trimmed);
+        if (!isNaN(testDate.getTime())) {
+          return trimmed;
+        }
+      }
+
+      // DD/MM/YYYY or D/M/YYYY format
+      if (trimmed.includes('/')) {
+        const parts = trimmed.split('/');
+        if (parts.length === 3) {
+          const day = parseInt(parts[0], 10);
+          const month = parseInt(parts[1], 10);
+          const year = parseInt(parts[2], 10);
+
+          // Validate ranges
+          if (isNaN(day) || isNaN(month) || isNaN(year)) {
+            console.warn(`[normalizeDateValue] Non-numeric date parts for column "${columnName}": ${trimmed}`);
+            return null;
+          }
+
+          if (month < 1 || month > 12) {
+            console.warn(`[normalizeDateValue] Invalid month for column "${columnName}": ${trimmed} (month=${month})`);
+            return null;
+          }
+
+          if (day < 1 || day > 31) {
+            console.warn(`[normalizeDateValue] Invalid day for column "${columnName}": ${trimmed} (day=${day})`);
+            return null;
+          }
+
+          // Full year validation (handle 2-digit years)
+          let fullYear = year;
+          if (year < 100) {
+            // Assume 2000s for years < 100
+            fullYear = 2000 + year;
+          }
+
+          // Create date and validate it's actually valid (handles Feb 31, etc.)
+          const isoString = `${fullYear.toString().padStart(4, '0')}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+          const testDate = new Date(isoString);
+
+          // Check if the date components match (catches invalid dates like Feb 31)
+          if (
+            testDate.getFullYear() === fullYear &&
+            testDate.getMonth() + 1 === month &&
+            testDate.getDate() === day
+          ) {
+            return isoString;
+          } else {
+            console.warn(`[normalizeDateValue] Calendrically invalid date for column "${columnName}": ${trimmed} → ${isoString}`);
+            return null;
+          }
+        }
+      }
+
+      // Try parsing as generic date string
+      const testDate = new Date(trimmed);
+      if (!isNaN(testDate.getTime())) {
+        return testDate.toISOString().split('T')[0];
+      }
+    }
+
+    // Unhandled type
+    console.warn(`[normalizeDateValue] Unhandled date type for column "${columnName}":`, typeof value, value);
+    return null;
+  } catch (error) {
+    console.error(`[normalizeDateValue] Error parsing date for column "${columnName}":`, value, error);
+    return null;
+  }
 }
 
 /**
@@ -346,10 +449,10 @@ function extractTypedColumns(row: any) {
     filial_origem: filialOrigem,
     serie: row['Série'] ? String(row['Série']) : undefined,
     nro_doc: row['Nro Doc.'] ? String(row['Nro Doc.']) : undefined,
-    data_des: parseDate(row['Data Des']),
-    data_nf: parseDate(row['Data NF']),
-    dle: parseDate(row['D.L.E.']),
-    agendam: parseDate(row['Agendam.']),
+    data_des: normalizeDateValue(row['Data Des'], 'Data Des'),
+    data_nf: normalizeDateValue(row['Data NF'], 'Data NF'),
+    dle: normalizeDateValue(row['D.L.E.'], 'D.L.E.'),
+    agendam: normalizeDateValue(row['Agendam.'], 'Agendam.'),
     palet: row['Palet'] ? String(row['Palet']) : undefined,
     conf: row['Conf'] ? String(row['Conf']) : undefined,
     peso: parseNumber(row['Peso']),
@@ -516,8 +619,27 @@ export async function processCarteiraUpload(
 
     for (let i = 0; i < jsonData.length; i++) {
       const row = jsonData[i];
+
+      // Log raw date values from first row for debugging
+      if (i === 0) {
+        console.log('[DEBUG] Valores brutos de datas da primeira linha do Excel:');
+        console.log('  - Data Des (bruto):', row['Data Des'], typeof row['Data Des']);
+        console.log('  - Data NF (bruto):', row['Data NF'], typeof row['Data NF']);
+        console.log('  - D.L.E. (bruto):', row['D.L.E.'], typeof row['D.L.E.']);
+        console.log('  - Agendam. (bruto):', row['Agendam.'], typeof row['Agendam.']);
+      }
+
       const validation = validateCarteiraRow(row);
       const typedColumns = extractTypedColumns(row);
+
+      // Log converted values from first row
+      if (i === 0) {
+        console.log('[DEBUG] Valores convertidos de datas da primeira linha:');
+        console.log('  - data_des (convertido):', typedColumns.data_des, typeof typedColumns.data_des);
+        console.log('  - data_nf (convertido):', typedColumns.data_nf, typeof typedColumns.data_nf);
+        console.log('  - dle (convertido):', typedColumns.dle, typeof typedColumns.dle);
+        console.log('  - agendam (convertido):', typedColumns.agendam, typeof typedColumns.agendam);
+      }
 
       items.push({
         upload_id: upload.id,
@@ -538,6 +660,53 @@ export async function processCarteiraUpload(
     const batchSize = 500;
     for (let i = 0; i < items.length; i += batchSize) {
       const batch = items.slice(i, i + batchSize);
+
+      // Log first item of first batch for debugging date conversions
+      if (i === 0 && batch.length > 0) {
+        console.log('[DEBUG] Exemplo do primeiro item a ser inserido no Supabase:');
+        console.log('  - linha_numero:', batch[0].linha_numero);
+        console.log('  - data_des:', batch[0].data_des, typeof batch[0].data_des);
+        console.log('  - data_nf:', batch[0].data_nf, typeof batch[0].data_nf);
+        console.log('  - dle:', batch[0].dle, typeof batch[0].dle);
+        console.log('  - agendam:', batch[0].agendam, typeof batch[0].agendam);
+      }
+
+      // Validate all date fields before insert
+      for (const item of batch) {
+        const dateFields = [
+          { name: 'data_des', value: item.data_des },
+          { name: 'data_nf', value: item.data_nf },
+          { name: 'dle', value: item.dle },
+          { name: 'agendam', value: item.agendam },
+        ];
+
+        for (const field of dateFields) {
+          if (field.value !== null && field.value !== undefined) {
+            // Must be a string in YYYY-MM-DD format
+            if (typeof field.value !== 'string') {
+              throw new Error(
+                `Linha ${item.linha_numero}: Campo "${field.name}" deve ser string ou null, recebeu ${typeof field.value}: ${field.value}`
+              );
+            }
+
+            // Validate ISO format
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(field.value)) {
+              throw new Error(
+                `Linha ${item.linha_numero}: Campo "${field.name}" não está em formato ISO (YYYY-MM-DD): "${field.value}"`
+              );
+            }
+
+            // Validate it's a valid date
+            const testDate = new Date(field.value);
+            if (isNaN(testDate.getTime())) {
+              throw new Error(
+                `Linha ${item.linha_numero}: Campo "${field.name}" contém data inválida: "${field.value}"`
+              );
+            }
+          }
+        }
+      }
+
       const { error: insertError } = await supabase
         .from('carteira_itens')
         .insert(batch);
