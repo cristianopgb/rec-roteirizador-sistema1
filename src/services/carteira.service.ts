@@ -10,24 +10,82 @@ import {
 } from '../constants/carteira-columns';
 
 /**
- * Remove empty columns from Excel headers (columns named __EMPTY, __EMPTY_1, etc.)
+ * Checks if a column name is invalid/should be removed.
+ * Returns true for:
+ * - undefined
+ * - null
+ * - empty string
+ * - whitespace-only string
+ * - "__EMPTY"
+ * - "__EMPTY_1", "__EMPTY_2", etc.
+ */
+function isInvalidColumnName(columnName: any): boolean {
+  if (columnName === undefined || columnName === null) {
+    return true;
+  }
+
+  if (typeof columnName !== 'string') {
+    return true;
+  }
+
+  const trimmed = columnName.trim();
+  if (trimmed === '') {
+    return true;
+  }
+
+  // Match __EMPTY or __EMPTY_N pattern
+  if (/^__EMPTY(_\d+)?$/.test(columnName)) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Remove invalid columns from Excel headers.
  * This is a deterministic operation on the raw REC file.
  */
 function removerColunasVazias(headers: string[]): string[] {
-  return headers.filter(header => !header.startsWith('__EMPTY'));
+  return headers.filter(header => !isInvalidColumnName(header));
+}
+
+/**
+ * Rename the 3rd "Filial" column to "Filial (origem)" to eliminate ambiguity.
+ * The raw REC export has two columns named "Filial":
+ * - Position 0 (1st): Filial (stays as is)
+ * - Position 2 (3rd): Filial → renamed to "Filial (origem)"
+ */
+function renomearFilialOrigem(headers: string[]): string[] {
+  const renamed = [...headers];
+  let filialCount = 0;
+
+  for (let i = 0; i < renamed.length; i++) {
+    if (renamed[i] === 'Filial') {
+      filialCount++;
+      // Rename the 2nd occurrence (which is position 2, the 3rd column)
+      if (filialCount === 2) {
+        renamed[i] = 'Filial (origem)';
+      }
+    }
+  }
+
+  return renamed;
 }
 
 /**
  * Validates EXACT order and names of the 38 raw columns from REC file.
  * This validation happens on the SEQUENCE of non-empty columns (not original sheet indices).
  * NO tolerance for different order or names.
+ *
+ * CRITICAL: After renaming, expects "Filial" at position 0 and "Filial (origem)" at position 2.
  */
 function validarOrdemExataBruta(headers: string[]): StructureValidationResult {
   // Must have exactly 38 columns after removing empty ones
   if (headers.length !== 38) {
+    const columnsInfo = `Colunas encontradas: [${headers.join(', ')}]`;
     return {
       valid: false,
-      errorMessage: `Arquivo fora do layout oficial da carteira REC. Esperado: 38 colunas com dados, encontrado: ${headers.length}`,
+      errorMessage: `Arquivo fora do layout oficial da carteira REC após limpeza de colunas inválidas. Esperado: 38 colunas, encontrado: ${headers.length}. ${columnsInfo}`,
     };
   }
 
@@ -47,7 +105,7 @@ function validarOrdemExataBruta(headers: string[]): StructureValidationResult {
     const details = mismatchedColumns
       .map((m, idx) => {
         const position = mismatchedColumns.indexOf(m);
-        return `Posição ${position + 1} na sequência: esperado "${m.expected}", encontrado "${m.found}"`;
+        return `Posição ${position + 1}: esperado "${m.expected}", encontrado "${m.found}"`;
       })
       .slice(0, 5)
       .join('; ');
@@ -55,7 +113,7 @@ function validarOrdemExataBruta(headers: string[]): StructureValidationResult {
     return {
       valid: false,
       mismatchedColumns,
-      errorMessage: `Arquivo fora do layout oficial da carteira REC. Colunas fora de ordem: ${details}`,
+      errorMessage: `Arquivo fora do layout oficial da carteira REC após limpeza. Colunas fora de ordem: ${details}`,
     };
   }
 
@@ -118,71 +176,6 @@ interface CarteiraItem {
   lon?: number;
 }
 
-/**
- * Validates Excel file structure with EXACT column name matching.
- * NO normalization, NO transformation - strict string equality only.
- */
-export function validateExcelStructure(
-  headers: string[]
-): StructureValidationResult {
-  const missingColumns: string[] = [];
-  const extraColumns: string[] = [];
-  const mismatchedColumns: Array<{ expected: string; found: string }> = [];
-
-  // Check for missing required columns (EXACT match)
-  for (const requiredColumn of COLUNAS_OBRIGATORIAS_EXCEL) {
-    if (!headers.includes(requiredColumn)) {
-      missingColumns.push(requiredColumn);
-
-      // Try to find similar column for helpful error message
-      const similar = headers.find(
-        h => h.toLowerCase() === requiredColumn.toLowerCase()
-      );
-      if (similar) {
-        mismatchedColumns.push({ expected: requiredColumn, found: similar });
-      }
-    }
-  }
-
-  // Check for extra columns
-  for (const header of headers) {
-    if (!COLUNAS_OBRIGATORIAS_EXCEL.includes(header as any)) {
-      extraColumns.push(header);
-    }
-  }
-
-  const valid = missingColumns.length === 0 && extraColumns.length === 0;
-
-  let errorMessage = '';
-  if (!valid) {
-    const errors: string[] = [];
-
-    if (missingColumns.length > 0) {
-      errors.push(`Colunas obrigatórias ausentes: ${missingColumns.join(', ')}`);
-    }
-
-    if (mismatchedColumns.length > 0) {
-      const details = mismatchedColumns
-        .map(m => `"${m.found}" deveria ser "${m.expected}"`)
-        .join(', ');
-      errors.push(`Colunas com nome incorreto: ${details}`);
-    }
-
-    if (extraColumns.length > 0) {
-      errors.push(`Colunas extras não esperadas: ${extraColumns.join(', ')}`);
-    }
-
-    errorMessage = errors.join(' | ');
-  }
-
-  return {
-    valid,
-    missingColumns: missingColumns.length > 0 ? missingColumns : undefined,
-    extraColumns: extraColumns.length > 0 ? extraColumns : undefined,
-    mismatchedColumns: mismatchedColumns.length > 0 ? mismatchedColumns : undefined,
-    errorMessage: errorMessage || undefined,
-  };
-}
 
 /**
  * Validates a single carteira row.
@@ -290,17 +283,14 @@ function parseDate(value: any): string | undefined {
  * Extract ALL 38 columns from row data for database storage.
  * Maps Excel column names to database column names.
  *
- * CRITICAL: Handles duplicate "Filial" columns by position:
- * - Position 0 (1st column) = filial (filial de roteirização)
- * - Position 2 (3rd column) = filial_origem (filial de onde a carga chegou)
+ * CRITICAL: Uses renamed column names:
+ * - "Filial" = filial (filial de roteirização)
+ * - "Filial (origem)" = filial_origem (filial de onde a carga chegou)
  */
 function extractTypedColumns(row: any) {
-  // Get all keys to access by position for duplicate "Filial" columns
-  const keys = Object.keys(row);
-
-  // Extract the two "Filial" values by position
-  const filial = keys[0] === 'Filial' && row[keys[0]] ? String(row[keys[0]]) : undefined;
-  const filialOrigem = keys[2] === 'Filial' && row[keys[2]] ? String(row[keys[2]]) : undefined;
+  // Extract the two filial values using renamed column names
+  const filial = row['Filial'] ? String(row['Filial']) : undefined;
+  const filialOrigem = row['Filial (origem)'] ? String(row['Filial (origem)']) : undefined;
 
   return {
     filial,
@@ -383,12 +373,20 @@ export async function processCarteiraUpload(
       };
     }
 
-    // STEP 2: Extract raw headers from first data row and remove empty columns
+    // STEP 2: Extract raw headers from first data row and remove invalid columns
     const rawHeaders = Object.keys(jsonData[0]);
+    console.log('[DEBUG] Colunas brutas lidas:', rawHeaders.length, rawHeaders);
+
     const cleanedHeaders = removerColunasVazias(rawHeaders);
+    console.log('[DEBUG] Colunas removidas:', rawHeaders.length - cleanedHeaders.length);
+    console.log('[DEBUG] Colunas após limpeza (antes renomeação):', cleanedHeaders.length, cleanedHeaders);
+
+    // STEP 2.5: Rename the 3rd "Filial" to "Filial (origem)"
+    const renamedHeaders = renomearFilialOrigem(cleanedHeaders);
+    console.log('[DEBUG] Colunas finais após renomeação:', renamedHeaders.length, renamedHeaders);
 
     // STEP 3: Validate exact sequence of 38 non-empty columns
-    const structureValidation = validarOrdemExataBruta(cleanedHeaders);
+    const structureValidation = validarOrdemExataBruta(renamedHeaders);
     if (!structureValidation.valid) {
       // Create upload record with error
       const { data: upload } = await supabase
@@ -416,12 +414,24 @@ export async function processCarteiraUpload(
       };
     }
 
-    // STEP 4: Remove empty columns from all data rows
+    // STEP 4: Remove invalid columns and rename "Filial" columns in all data rows
     jsonData = jsonData.map(row => {
       const cleanedRow: any = {};
+      let filialCount = 0;
+
       Object.keys(row).forEach(key => {
-        if (!key.startsWith('__EMPTY')) {
-          cleanedRow[key] = row[key];
+        if (!isInvalidColumnName(key)) {
+          // Rename the 2nd "Filial" to "Filial (origem)"
+          if (key === 'Filial') {
+            filialCount++;
+            if (filialCount === 2) {
+              cleanedRow['Filial (origem)'] = row[key];
+            } else {
+              cleanedRow[key] = row[key];
+            }
+          } else {
+            cleanedRow[key] = row[key];
+          }
         }
       });
       return cleanedRow;

@@ -3,17 +3,17 @@
  * This is the sequence of non-empty columns after removing __EMPTY columns.
  *
  * CRITICAL: This is the official raw layout from REC:
- * - The 1st and 3rd columns are BOTH named "Filial" (not a typo!)
+ * - The 1st and 3rd columns are BOTH named "Filial" in the raw export (not a typo!)
  * - First "Filial" = filial de roteirização (onde será feita a roteirização)
  * - Third "Filial" = filial de origem (de onde a carga chegou)
- * - NO renaming occurs - columns stay exactly as exported from ERP
+ * - RENAMED INTERNALLY: The 3rd "Filial" is renamed to "Filial (origem)" to avoid ambiguity
  * - Validation uses the SEQUENCE of non-empty columns (not sheet indices)
  * - Total: 38 columns in EXACT order
  */
 export const COLUNAS_BRUTAS_REC = [
   'Filial',          // 1 - Filial de roteirização
   'Romane',          // 2
-  'Filial',          // 3 - Filial de origem (mesmo nome, dados diferentes)
+  'Filial (origem)', // 3 - Filial de origem (renomeada internamente)
   'Série',           // 4
   'Nro Doc.',        // 5
   'Data Des',        // 6
@@ -53,21 +53,21 @@ export const COLUNAS_BRUTAS_REC = [
 
 /**
  * Expected column names for carteira validation.
- * IDENTICAL to COLUNAS_BRUTAS_REC - no transformation occurs.
+ * IDENTICAL to COLUNAS_BRUTAS_REC with internal renaming applied.
  *
  * CRITICAL: These column names must match EXACTLY:
  * - Case sensitive
  * - Space sensitive
  * - Accent sensitive
  * - No normalization allowed
- * - NO renaming - third column stays as "Filial"
+ * - The 3rd column "Filial" is renamed to "Filial (origem)" to eliminate ambiguity
  *
  * Total: 38 required columns
  */
 export const COLUNAS_OBRIGATORIAS_EXCEL = [
   'Filial',
   'Romane',
-  'Filial',
+  'Filial (origem)',
   'Série',
   'Nro Doc.',
   'Data Des',
