@@ -673,6 +673,46 @@ export async function processCarteiraUpload(
         rowObject[headerName] = cellValue;
       });
 
+      // FORENSIC ANALYSIS: For ROMANE 564, log raw array structure
+      if (rowObject['Romane'] === '564') {
+        console.log('\n[DEBUG] ========== ROMANE 564 - ARRAY BRUTO COMPLETO ==========');
+        console.log('[DEBUG] Array length:', rawRow.length);
+        console.log('[DEBUG] Array completo:');
+        rawRow.forEach((val, idx) => {
+          console.log(`  Índice ${idx}: ${JSON.stringify(val)} (tipo: ${typeof val})`);
+        });
+
+        console.log('\n[DEBUG] ========== MAPEAMENTO DE ÍNDICES ==========');
+        console.log('[DEBUG] validColumnIndices:', validColumnIndices);
+        console.log('[DEBUG] renamedHeaders:', renamedHeaders);
+
+        // Find indices for critical columns
+        const dataDes_idx = renamedHeaders.indexOf('Data Des');
+        const dataNF_idx = renamedHeaders.indexOf('Data NF');
+        const dle_idx = renamedHeaders.indexOf('D.L.E.');
+        const agendam_idx = renamedHeaders.indexOf('Agendam.');
+
+        console.log('\n[DEBUG] Mapeamento de colunas críticas:');
+        console.log(`  Data Des    → Índice no header: ${dataDes_idx}  | Índice físico no array: ${validColumnIndices[dataDes_idx]}  | Valor: ${JSON.stringify(rawRow[validColumnIndices[dataDes_idx]])}`);
+        console.log(`  Data NF     → Índice no header: ${dataNF_idx}  | Índice físico no array: ${validColumnIndices[dataNF_idx]}  | Valor: ${JSON.stringify(rawRow[validColumnIndices[dataNF_idx]])}`);
+        console.log(`  D.L.E.      → Índice no header: ${dle_idx}  | Índice físico no array: ${validColumnIndices[dle_idx]}  | Valor: ${JSON.stringify(rawRow[validColumnIndices[dle_idx]])}`);
+        console.log(`  Agendam.    → Índice no header: ${agendam_idx}  | Índice físico no array: ${validColumnIndices[agendam_idx]}  | Valor: ${JSON.stringify(rawRow[validColumnIndices[agendam_idx]])}`);
+
+        // Check neighbors for D.L.E.
+        const dle_physical_idx = validColumnIndices[dle_idx];
+        console.log('\n[DEBUG] ========== VARREDURA DE VIZINHOS D.L.E. ==========');
+        console.log(`  Índice ${dle_physical_idx - 1} (anterior): ${JSON.stringify(rawRow[dle_physical_idx - 1])} (tipo: ${typeof rawRow[dle_physical_idx - 1]})`);
+        console.log(`  Índice ${dle_physical_idx} (esperado): ${JSON.stringify(rawRow[dle_physical_idx])} (tipo: ${typeof rawRow[dle_physical_idx]})`);
+        console.log(`  Índice ${dle_physical_idx + 1} (posterior): ${JSON.stringify(rawRow[dle_physical_idx + 1])} (tipo: ${typeof rawRow[dle_physical_idx + 1]})`);
+
+        // Check neighbors for Agendam.
+        const agendam_physical_idx = validColumnIndices[agendam_idx];
+        console.log('\n[DEBUG] ========== VARREDURA DE VIZINHOS AGENDAM. ==========');
+        console.log(`  Índice ${agendam_physical_idx - 1} (anterior): ${JSON.stringify(rawRow[agendam_physical_idx - 1])} (tipo: ${typeof rawRow[agendam_physical_idx - 1]})`);
+        console.log(`  Índice ${agendam_physical_idx} (esperado): ${JSON.stringify(rawRow[agendam_physical_idx])} (tipo: ${typeof rawRow[agendam_physical_idx]})`);
+        console.log(`  Índice ${agendam_physical_idx + 1} (posterior): ${JSON.stringify(rawRow[agendam_physical_idx + 1])} (tipo: ${typeof rawRow[agendam_physical_idx + 1]})`);
+      }
+
       jsonData.push(rowObject);
     }
 
