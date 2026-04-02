@@ -10,6 +10,54 @@ import {
 } from '../constants/carteira-columns';
 
 /**
+ * Normalizes a header name by:
+ * - Converting null/undefined to empty string
+ * - Trimming whitespace from edges
+ * - Collapsing multiple internal spaces into one
+ * - Removing technical suffixes (_1, _2, etc.) added by libraries for duplicate columns
+ *
+ * Examples:
+ * - "Filial " → "Filial"
+ * - "Série " → "Série"
+ * - "Filial _1" → "Filial"
+ * - "Filial_1" → "Filial"
+ * - "Nro Doc. " → "Nro Doc."
+ */
+function normalizeHeaderName(name: unknown): string {
+  // null / undefined
+  if (name === null || name === undefined) {
+    return "";
+  }
+
+  // força string
+  let normalized = String(name);
+
+  // trim nas pontas
+  normalized = normalized.trim();
+
+  // se ficou vazio depois do trim
+  if (!normalized) {
+    return "";
+  }
+
+  // colapsa múltiplos espaços internos
+  normalized = normalized.replace(/\s+/g, " ");
+
+  // remove sufixos técnicos automáticos de bibliotecas para colunas duplicadas
+  // Exemplos:
+  // "Filial _1" -> "Filial"
+  // "Filial_1"  -> "Filial"
+  // "Filial _12" -> "Filial"
+  // Só remove quando o padrão está NO FINAL e é claramente técnico
+  normalized = normalized.replace(/\s*_\d+$/, "");
+
+  // trim de novo caso tenha sobrado espaço após remover o sufixo
+  normalized = normalized.trim();
+
+  return normalized;
+}
+
+/**
  * Checks if a column name is invalid/should be removed.
  * Returns true for:
  * - undefined
@@ -375,15 +423,18 @@ export async function processCarteiraUpload(
 
     // STEP 2: Extract raw headers from first data row and remove invalid columns
     const rawHeaders = Object.keys(jsonData[0]);
-    console.log('[DEBUG] Colunas brutas lidas:', rawHeaders.length, rawHeaders);
+    console.log('[DEBUG] 1. Headers brutos originais:', rawHeaders.length, rawHeaders);
 
     const cleanedHeaders = removerColunasVazias(rawHeaders);
-    console.log('[DEBUG] Colunas removidas:', rawHeaders.length - cleanedHeaders.length);
-    console.log('[DEBUG] Colunas após limpeza (antes renomeação):', cleanedHeaders.length, cleanedHeaders);
+    console.log('[DEBUG] 2. Headers após remoção de colunas vazias:', cleanedHeaders.length, cleanedHeaders);
 
-    // STEP 2.5: Rename the 3rd "Filial" to "Filial (origem)"
-    const renamedHeaders = renomearFilialOrigem(cleanedHeaders);
-    console.log('[DEBUG] Colunas finais após renomeação:', renamedHeaders.length, renamedHeaders);
+    // STEP 2.5: Normalize header names (trim, collapse spaces, remove technical suffixes)
+    const normalizedHeaders = cleanedHeaders.map(h => normalizeHeaderName(h));
+    console.log('[DEBUG] 3. Headers após normalização:', normalizedHeaders.length, normalizedHeaders);
+
+    // STEP 2.6: Rename the 2nd "Filial" to "Filial (origem)"
+    const renamedHeaders = renomearFilialOrigem(normalizedHeaders);
+    console.log('[DEBUG] 4. Headers finais após renomeação:', renamedHeaders.length, renamedHeaders);
 
     // STEP 3: Validate exact sequence of 38 non-empty columns
     const structureValidation = validarOrdemExataBruta(renamedHeaders);
@@ -414,23 +465,26 @@ export async function processCarteiraUpload(
       };
     }
 
-    // STEP 4: Remove invalid columns and rename "Filial" columns in all data rows
+    // STEP 4: Remove invalid columns, normalize headers, and rename "Filial" columns in all data rows
     jsonData = jsonData.map(row => {
       const cleanedRow: any = {};
       let filialCount = 0;
 
       Object.keys(row).forEach(key => {
         if (!isInvalidColumnName(key)) {
+          // Normalize the key name
+          const normalizedKey = normalizeHeaderName(key);
+
           // Rename the 2nd "Filial" to "Filial (origem)"
-          if (key === 'Filial') {
+          if (normalizedKey === 'Filial') {
             filialCount++;
             if (filialCount === 2) {
               cleanedRow['Filial (origem)'] = row[key];
             } else {
-              cleanedRow[key] = row[key];
+              cleanedRow[normalizedKey] = row[key];
             }
           } else {
-            cleanedRow[key] = row[key];
+            cleanedRow[normalizedKey] = row[key];
           }
         }
       });
