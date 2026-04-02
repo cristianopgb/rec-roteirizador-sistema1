@@ -292,6 +292,7 @@ export function validateCarteiraRow(
 
 /**
  * Safely parse a value as a number, handling Excel formats.
+ * Detects Brazilian (1.234,56) and US (1,234.56) number formats.
  */
 function parseNumber(value: any): number | undefined {
   if (value === undefined || value === null || value === '') {
@@ -300,7 +301,41 @@ function parseNumber(value: any): number | undefined {
   if (typeof value === 'number') {
     return value;
   }
-  const num = parseFloat(String(value).replace(',', '.'));
+
+  const strValue = String(value).trim();
+  if (strValue === '') {
+    return undefined;
+  }
+
+  // Check if contains both separators
+  const hasComma = strValue.includes(',');
+  const hasDot = strValue.includes('.');
+
+  let cleanedValue = strValue;
+
+  if (hasComma && hasDot) {
+    // Determine format by which separator comes last
+    const lastCommaIndex = strValue.lastIndexOf(',');
+    const lastDotIndex = strValue.lastIndexOf('.');
+
+    if (lastCommaIndex > lastDotIndex) {
+      // Brazilian format: 8.655,42
+      // Remove dots (thousands separator), replace comma with dot (decimal)
+      cleanedValue = strValue.replace(/\./g, '').replace(',', '.');
+    } else {
+      // US format: 8,655.42
+      // Remove commas (thousands separator), keep dot (decimal)
+      cleanedValue = strValue.replace(/,/g, '');
+    }
+  } else if (hasComma && !hasDot) {
+    // Only comma: assume decimal separator (Brazilian simple format: 123,45)
+    cleanedValue = strValue.replace(',', '.');
+  } else if (hasDot && !hasComma) {
+    // Only dot: already in US format or simple number
+    cleanedValue = strValue;
+  }
+
+  const num = parseFloat(cleanedValue);
   return isNaN(num) ? undefined : num;
 }
 
@@ -355,7 +390,21 @@ function normalizeDateValue(value: any, columnName?: string): string | null {
 
     // Case 3: String formats
     if (typeof value === 'string') {
-      const trimmed = value.trim();
+      let trimmed = value.trim();
+
+      // Remove trailing comma if present (e.g., "26/02/2026 07:00:00,")
+      if (trimmed.endsWith(',')) {
+        trimmed = trimmed.slice(0, -1).trim();
+      }
+
+      // If contains space, extract date part before time (e.g., "09/02/2026 08:30:00")
+      if (trimmed.includes(' ')) {
+        const spaceParts = trimmed.split(' ');
+        if (spaceParts.length >= 2) {
+          // Extract the first part as the date
+          trimmed = spaceParts[0].trim();
+        }
+      }
 
       // Already in YYYY-MM-DD format?
       if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
@@ -620,13 +669,20 @@ export async function processCarteiraUpload(
     for (let i = 0; i < jsonData.length; i++) {
       const row = jsonData[i];
 
-      // Log raw date values from first row for debugging
+      // Log raw values from first row for debugging
       if (i === 0) {
-        console.log('[DEBUG] Valores brutos de datas da primeira linha do Excel:');
-        console.log('  - Data Des (bruto):', row['Data Des'], typeof row['Data Des']);
-        console.log('  - Data NF (bruto):', row['Data NF'], typeof row['Data NF']);
-        console.log('  - D.L.E. (bruto):', row['D.L.E.'], typeof row['D.L.E.']);
-        console.log('  - Agendam. (bruto):', row['Agendam.'], typeof row['Agendam.']);
+        console.log('\n[DEBUG] ========== VALORES BRUTOS DA PRIMEIRA LINHA ==========');
+        console.log('[DEBUG] ROMANE:', row['Romane']);
+        console.log('[DEBUG] Datas:');
+        console.log('  - Data Des (bruto):', row['Data Des'], '(tipo:', typeof row['Data Des'], ')');
+        console.log('  - Data NF (bruto):', row['Data NF'], '(tipo:', typeof row['Data NF'], ')');
+        console.log('  - D.L.E. (bruto):', row['D.L.E.'], '(tipo:', typeof row['D.L.E.'], ')');
+        console.log('  - Agendam. (bruto):', row['Agendam.'], '(tipo:', typeof row['Agendam.'], ')');
+        console.log('  - Agenda (bruto):', row['Agenda'], '(tipo:', typeof row['Agenda'], ')');
+        console.log('[DEBUG] Números:');
+        console.log('  - Peso (bruto):', row['Peso'], '(tipo:', typeof row['Peso'], ')');
+        console.log('  - Vlr.Merc. (bruto):', row['Vlr.Merc.'], '(tipo:', typeof row['Vlr.Merc.'], ')');
+        console.log('  - Peso C (bruto):', row['Peso C'], '(tipo:', typeof row['Peso C'], ')');
       }
 
       const validation = validateCarteiraRow(row);
@@ -634,11 +690,18 @@ export async function processCarteiraUpload(
 
       // Log converted values from first row
       if (i === 0) {
-        console.log('[DEBUG] Valores convertidos de datas da primeira linha:');
-        console.log('  - data_des (convertido):', typedColumns.data_des, typeof typedColumns.data_des);
-        console.log('  - data_nf (convertido):', typedColumns.data_nf, typeof typedColumns.data_nf);
-        console.log('  - dle (convertido):', typedColumns.dle, typeof typedColumns.dle);
-        console.log('  - agendam (convertido):', typedColumns.agendam, typeof typedColumns.agendam);
+        console.log('\n[DEBUG] ========== VALORES CONVERTIDOS DA PRIMEIRA LINHA ==========');
+        console.log('[DEBUG] ROMANE:', typedColumns.romane);
+        console.log('[DEBUG] Datas:');
+        console.log('  - data_des (convertido):', typedColumns.data_des);
+        console.log('  - data_nf (convertido):', typedColumns.data_nf);
+        console.log('  - dle (convertido):', typedColumns.dle);
+        console.log('  - agendam (convertido):', typedColumns.agendam);
+        console.log('  - agenda (convertido):', typedColumns.agenda);
+        console.log('[DEBUG] Números:');
+        console.log('  - peso (convertido):', typedColumns.peso);
+        console.log('  - vlr_merc (convertido):', typedColumns.vlr_merc);
+        console.log('  - peso_c (convertido):', typedColumns.peso_c);
       }
 
       items.push({
@@ -656,6 +719,26 @@ export async function processCarteiraUpload(
       }
     }
 
+    // Log specific romane 432 before insert
+    const romane432 = items.find(item => item.romane === '432');
+    if (romane432) {
+      console.log('\n[DEBUG] ========== ROMANE 432 - DADOS ANTES DO INSERT ==========');
+      console.log('[DEBUG] linha_numero:', romane432.linha_numero);
+      console.log('[DEBUG] Datas:');
+      console.log('  - data_des:', romane432.data_des);
+      console.log('  - data_nf:', romane432.data_nf);
+      console.log('  - dle:', romane432.dle);
+      console.log('  - agendam:', romane432.agendam);
+      console.log('  - agenda:', romane432.agenda);
+      console.log('[DEBUG] Números:');
+      console.log('  - peso:', romane432.peso);
+      console.log('  - vlr_merc:', romane432.vlr_merc);
+      console.log('  - peso_c:', romane432.peso_c);
+      console.log('[DEBUG] Outros:');
+      console.log('  - tipo_c:', romane432.tipo_c);
+      console.log('  - ultima:', romane432.ultima);
+    }
+
     // Insert items in batches
     const batchSize = 500;
     for (let i = 0; i < items.length; i += batchSize) {
@@ -663,12 +746,13 @@ export async function processCarteiraUpload(
 
       // Log first item of first batch for debugging date conversions
       if (i === 0 && batch.length > 0) {
-        console.log('[DEBUG] Exemplo do primeiro item a ser inserido no Supabase:');
+        console.log('\n[DEBUG] ========== PRIMEIRO ITEM DO BATCH A SER INSERIDO ==========');
         console.log('  - linha_numero:', batch[0].linha_numero);
-        console.log('  - data_des:', batch[0].data_des, typeof batch[0].data_des);
-        console.log('  - data_nf:', batch[0].data_nf, typeof batch[0].data_nf);
-        console.log('  - dle:', batch[0].dle, typeof batch[0].dle);
-        console.log('  - agendam:', batch[0].agendam, typeof batch[0].agendam);
+        console.log('  - romane:', batch[0].romane);
+        console.log('  - data_des:', batch[0].data_des);
+        console.log('  - data_nf:', batch[0].data_nf);
+        console.log('  - dle:', batch[0].dle);
+        console.log('  - agendam:', batch[0].agendam);
       }
 
       // Validate all date fields before insert
@@ -713,6 +797,33 @@ export async function processCarteiraUpload(
 
       if (insertError) {
         throw new Error(`Erro ao inserir lote ${i / batchSize + 1}: ${insertError.message}`);
+      }
+    }
+
+    // Validate romane 432 after insert
+    if (romane432) {
+      const { data: savedRomane432, error: queryError } = await supabase
+        .from('carteira_itens')
+        .select('romane, data_des, data_nf, dle, agendam, agenda, peso, vlr_merc, peso_c, tipo_c, ultima')
+        .eq('romane', '432')
+        .eq('upload_id', upload.id)
+        .maybeSingle();
+
+      if (!queryError && savedRomane432) {
+        console.log('\n[DEBUG] ========== ROMANE 432 - COMPARAÇÃO ANTES/DEPOIS ==========');
+        console.log('[DEBUG] Datas:');
+        console.log('  - data_des    | Enviado:', romane432.data_des, '| Salvo:', savedRomane432.data_des);
+        console.log('  - data_nf     | Enviado:', romane432.data_nf, '| Salvo:', savedRomane432.data_nf);
+        console.log('  - dle         | Enviado:', romane432.dle, '| Salvo:', savedRomane432.dle);
+        console.log('  - agendam     | Enviado:', romane432.agendam, '| Salvo:', savedRomane432.agendam);
+        console.log('  - agenda      | Enviado:', romane432.agenda, '| Salvo:', savedRomane432.agenda);
+        console.log('[DEBUG] Números:');
+        console.log('  - peso        | Enviado:', romane432.peso, '| Salvo:', savedRomane432.peso);
+        console.log('  - vlr_merc    | Enviado:', romane432.vlr_merc, '| Salvo:', savedRomane432.vlr_merc);
+        console.log('  - peso_c      | Enviado:', romane432.peso_c, '| Salvo:', savedRomane432.peso_c);
+        console.log('[DEBUG] Outros:');
+        console.log('  - tipo_c      | Enviado:', romane432.tipo_c, '| Salvo:', savedRomane432.tipo_c);
+        console.log('  - ultima      | Enviado:', romane432.ultima, '| Salvo:', savedRomane432.ultima);
       }
     }
 
