@@ -183,3 +183,34 @@ export interface CarteiraItem {
   dados_originais?: Record<string, any>;
   created_at?: string;
 }
+
+export interface CarteiraFilterValues {
+  status_validacao?: 'valida' | 'invalida';
+  filial?: string | string[];
+  uf?: string | string[];
+  destinatario?: string | string[];
+  cida?: string | string[];
+  tomador?: string | string[];
+  mesoregiao?: string | string[];
+  data_des_inicio?: string;
+  data_des_fim?: string;
+  dle_inicio?: string;
+  dle_fim?: string;
+  agendam_inicio?: string;
+  agendam_fim?: string;
+  data_nf_inicio?: string;
+  data_nf_fim?: string;
+  tipo_roteirizacao?: TipoRoteirizacao;
+  configuracao_frota?: ConfiguracaoFrota[];
+}
+
+export interface Upload {
+  id: string;
+  arquivo_nome: string;
+  total_linhas: number;
+  total_validas: number;
+  total_invalidas: number;
+  filial_id: string;
+  user_id: string;
+  created_at: string;
+}

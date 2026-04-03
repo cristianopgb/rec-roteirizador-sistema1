@@ -2,31 +2,10 @@ import { useState, useEffect } from 'react';
 import { Button } from '../common/Button';
 import { Input } from '../common/Input';
 import { Select } from '../ui/Select';
+import { MultiSelect } from '../ui/MultiSelect';
 import { Filter, X } from 'lucide-react';
 import { supabase } from '../../services/supabase';
-import type { Veiculo } from '../../types';
-
-import type { TipoRoteirizacao, ConfiguracaoFrota } from '../../types';
-
-export interface CarteiraFilterValues {
-  status_validacao?: 'valida' | 'invalida';
-  filial?: string;
-  uf?: string;
-  destinatario?: string;
-  cida?: string;
-  tomador?: string;
-  data_des_inicio?: string;
-  data_des_fim?: string;
-  dle_inicio?: string;
-  dle_fim?: string;
-  agendam_inicio?: string;
-  agendam_fim?: string;
-  data_nf_inicio?: string;
-  data_nf_fim?: string;
-  mesoregiao?: string;
-  tipo_roteirizacao?: TipoRoteirizacao;
-  configuracao_frota?: ConfiguracaoFrota[];
-}
+import type { Veiculo, CarteiraFilterValues, TipoRoteirizacao, ConfiguracaoFrota } from '../../types';
 
 interface CarteiraFiltersProps {
   onFilterChange: (filters: CarteiraFilterValues) => void;
@@ -43,7 +22,12 @@ export function CarteiraFilters({
 }: CarteiraFiltersProps) {
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState<CarteiraFilterValues>({
-    filial: !isAdmin ? userFilial : undefined,
+    filial: !isAdmin && userFilial ? [userFilial] : undefined,
+    uf: undefined,
+    destinatario: undefined,
+    cida: undefined,
+    tomador: undefined,
+    mesoregiao: undefined,
     tipo_roteirizacao: 'carteira',
     configuracao_frota: [],
   });
@@ -68,10 +52,8 @@ export function CarteiraFilters({
   }, [uploadId]);
 
   useEffect(() => {
-    if (userFilial) {
-      buscarPerfisDisponiveis();
-    }
-  }, [userFilial]);
+    buscarPerfisDisponiveis();
+  }, []);
 
   const buscarMesoregioes = async () => {
     if (!uploadId) return;
@@ -219,13 +201,11 @@ export function CarteiraFilters({
   };
 
   const buscarPerfisDisponiveis = async () => {
-    if (!userFilial) return;
-
     try {
       const { data, error } = await supabase
         .from('veiculos')
         .select('perfil')
-        .eq('filial_id', userFilial)
+        .is('filial_id', null)
         .eq('ativo', true);
 
       if (error) throw error;
@@ -277,7 +257,12 @@ export function CarteiraFilters({
 
   const handleClearFilters = () => {
     const clearedFilters: CarteiraFilterValues = {
-      filial: !isAdmin ? userFilial : undefined,
+      filial: !isAdmin && userFilial ? [userFilial] : undefined,
+      uf: undefined,
+      destinatario: undefined,
+      cida: undefined,
+      tomador: undefined,
+      mesoregiao: undefined,
       tipo_roteirizacao: 'carteira',
       configuracao_frota: [],
     };
@@ -337,108 +322,56 @@ export function CarteiraFilters({
             </div>
 
             {isAdmin && (
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Filial
-                </label>
-                <Select
-                  value={filters.filial || ''}
-                  onChange={(e) => handleFilterChange('filial', e.target.value)}
-                >
-                  <option value="">Todas</option>
-                  {filiais.map((filial) => (
-                    <option key={filial} value={filial}>
-                      {filial}
-                    </option>
-                  ))}
-                </Select>
-              </div>
+              <MultiSelect
+                label="Filial"
+                value={Array.isArray(filters.filial) ? filters.filial : (filters.filial ? [filters.filial] : [])}
+                options={filiais.map(f => ({ value: f, label: f }))}
+                onChange={(values) => handleFilterChange('filial', values.length > 0 ? values : undefined)}
+                placeholder="Todas"
+              />
             )}
 
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">UF</label>
-              <Select
-                value={filters.uf || ''}
-                onChange={(e) => handleFilterChange('uf', e.target.value)}
-              >
-                <option value="">Todos</option>
-                {ufs.map((uf) => (
-                  <option key={uf} value={uf}>
-                    {uf}
-                  </option>
-                ))}
-              </Select>
-            </div>
+            <MultiSelect
+              label="UF"
+              value={Array.isArray(filters.uf) ? filters.uf : (filters.uf ? [filters.uf] : [])}
+              options={ufs.map(uf => ({ value: uf, label: uf }))}
+              onChange={(values) => handleFilterChange('uf', values.length > 0 ? values : undefined)}
+              placeholder="Todos"
+            />
 
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
-                Mesorregião
-              </label>
-              <Select
-                value={filters.mesoregiao || ''}
-                onChange={(e) => handleFilterChange('mesoregiao', e.target.value)}
-              >
-                <option value="">Todas</option>
-                {mesoregioes.map((mesoregiao) => (
-                  <option key={mesoregiao} value={mesoregiao}>
-                    {mesoregiao}
-                  </option>
-                ))}
-              </Select>
-            </div>
+            <MultiSelect
+              label="Mesorregião"
+              value={Array.isArray(filters.mesoregiao) ? filters.mesoregiao : (filters.mesoregiao ? [filters.mesoregiao] : [])}
+              options={mesoregioes.map(m => ({ value: m, label: m }))}
+              onChange={(values) => handleFilterChange('mesoregiao', values.length > 0 ? values : undefined)}
+              placeholder="Todas"
+            />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
-                Destinatário
-              </label>
-              <Select
-                value={filters.destinatario || ''}
-                onChange={(e) => handleFilterChange('destinatario', e.target.value)}
-              >
-                <option value="">Todos</option>
-                {destinatarios.map((dest) => (
-                  <option key={dest} value={dest}>
-                    {dest}
-                  </option>
-                ))}
-              </Select>
-            </div>
+            <MultiSelect
+              label="Destinatário"
+              value={Array.isArray(filters.destinatario) ? filters.destinatario : (filters.destinatario ? [filters.destinatario] : [])}
+              options={destinatarios.map(d => ({ value: d, label: d }))}
+              onChange={(values) => handleFilterChange('destinatario', values.length > 0 ? values : undefined)}
+              placeholder="Todos"
+            />
 
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
-                Cidade
-              </label>
-              <Select
-                value={filters.cida || ''}
-                onChange={(e) => handleFilterChange('cida', e.target.value)}
-              >
-                <option value="">Todas</option>
-                {cidades.map((cidade) => (
-                  <option key={cidade} value={cidade}>
-                    {cidade}
-                  </option>
-                ))}
-              </Select>
-            </div>
+            <MultiSelect
+              label="Cidade"
+              value={Array.isArray(filters.cida) ? filters.cida : (filters.cida ? [filters.cida] : [])}
+              options={cidades.map(c => ({ value: c, label: c }))}
+              onChange={(values) => handleFilterChange('cida', values.length > 0 ? values : undefined)}
+              placeholder="Todas"
+            />
 
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
-                Tomador
-              </label>
-              <Select
-                value={filters.tomador || ''}
-                onChange={(e) => handleFilterChange('tomador', e.target.value)}
-              >
-                <option value="">Todos</option>
-                {tomadores.map((tomador) => (
-                  <option key={tomador} value={tomador}>
-                    {tomador}
-                  </option>
-                ))}
-              </Select>
-            </div>
+            <MultiSelect
+              label="Tomador"
+              value={Array.isArray(filters.tomador) ? filters.tomador : (filters.tomador ? [filters.tomador] : [])}
+              options={tomadores.map(t => ({ value: t, label: t }))}
+              onChange={(values) => handleFilterChange('tomador', values.length > 0 ? values : undefined)}
+              placeholder="Todos"
+            />
           </div>
 
           <div className="border border-gray-200 rounded-lg p-3 bg-gray-50">
@@ -617,7 +550,7 @@ export function CarteiraFilters({
           {filters.tipo_roteirizacao === 'frota' && perfisDisponiveis.length === 0 && (
             <div className="border-2 border-yellow-200 rounded-lg p-4 bg-yellow-50">
               <p className="text-sm text-yellow-800">
-                ⚠️ Nenhum veículo cadastrado para sua filial. Cadastre veículos antes de usar o modo Frota.
+                ⚠️ Nenhum veículo global cadastrado. Cadastre veículos sem vinculação a filial específica para usar o modo Frota.
               </p>
             </div>
           )}

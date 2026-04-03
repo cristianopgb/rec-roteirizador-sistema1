@@ -93,22 +93,46 @@ export async function buscarCarteiraValida(
 
   if (filtros) {
     if (filtros.uf) {
-      query = query.eq('uf', filtros.uf);
+      if (Array.isArray(filtros.uf)) {
+        query = query.in('uf', filtros.uf);
+      } else {
+        query = query.eq('uf', filtros.uf);
+      }
     }
     if (filtros.cida) {
-      query = query.ilike('cida', `%${filtros.cida}%`);
+      if (Array.isArray(filtros.cida)) {
+        query = query.in('cida', filtros.cida);
+      } else {
+        query = query.ilike('cida', `%${filtros.cida}%`);
+      }
     }
     if (filtros.filial) {
-      query = query.eq('filial', filtros.filial);
+      if (Array.isArray(filtros.filial)) {
+        query = query.in('filial', filtros.filial);
+      } else {
+        query = query.eq('filial', filtros.filial);
+      }
     }
     if (filtros.destinatario) {
-      query = query.ilike('destinatario', `%${filtros.destinatario}%`);
+      if (Array.isArray(filtros.destinatario)) {
+        query = query.in('destinatario', filtros.destinatario);
+      } else {
+        query = query.ilike('destinatario', `%${filtros.destinatario}%`);
+      }
     }
     if (filtros.tomador) {
-      query = query.ilike('tomador', `%${filtros.tomador}%`);
+      if (Array.isArray(filtros.tomador)) {
+        query = query.in('tomador', filtros.tomador);
+      } else {
+        query = query.ilike('tomador', `%${filtros.tomador}%`);
+      }
     }
     if (filtros.mesoregiao) {
-      query = query.eq('mesoregiao', filtros.mesoregiao);
+      if (Array.isArray(filtros.mesoregiao)) {
+        query = query.in('mesoregiao', filtros.mesoregiao);
+      } else {
+        query = query.eq('mesoregiao', filtros.mesoregiao);
+      }
     }
     if (filtros.data_des_inicio) {
       query = query.gte('data_des', filtros.data_des_inicio);
@@ -192,7 +216,7 @@ export async function buscarVeiculosAtivos(filialId: string): Promise<Veiculo[]>
   const { data, error } = await supabase
     .from('veiculos')
     .select('*')
-    .eq('filial_id', filialId)
+    .is('filial_id', null)
     .eq('ativo', true);
 
   if (error) {

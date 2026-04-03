@@ -769,11 +769,11 @@ export async function getCarteiraItems(
   offset = 0,
   filters?: {
     status_validacao?: 'valida' | 'invalida';
-    filial?: string;
-    uf?: string;
-    destinatario?: string;
-    cida?: string;
-    tomador?: string;
+    filial?: string | string[];
+    uf?: string | string[];
+    destinatario?: string | string[];
+    cida?: string | string[];
+    tomador?: string | string[];
     data_des_inicio?: string;
     data_des_fim?: string;
     dle_inicio?: string;
@@ -782,7 +782,7 @@ export async function getCarteiraItems(
     agendam_fim?: string;
     data_nf_inicio?: string;
     data_nf_fim?: string;
-    mesoregiao?: string;
+    mesoregiao?: string | string[];
   }
 ) {
   let query = supabase
@@ -797,27 +797,51 @@ export async function getCarteiraItems(
   }
 
   if (filters?.filial) {
-    query = query.eq('filial', filters.filial);
+    if (Array.isArray(filters.filial)) {
+      query = query.in('filial', filters.filial);
+    } else {
+      query = query.eq('filial', filters.filial);
+    }
   }
 
   if (filters?.uf) {
-    query = query.eq('uf', filters.uf);
+    if (Array.isArray(filters.uf)) {
+      query = query.in('uf', filters.uf);
+    } else {
+      query = query.eq('uf', filters.uf);
+    }
   }
 
   if (filters?.destinatario) {
-    query = query.ilike('destinatario', `%${filters.destinatario}%`);
+    if (Array.isArray(filters.destinatario)) {
+      query = query.in('destinatario', filters.destinatario);
+    } else {
+      query = query.ilike('destinatario', `%${filters.destinatario}%`);
+    }
   }
 
   if (filters?.cida) {
-    query = query.ilike('cida', `%${filters.cida}%`);
+    if (Array.isArray(filters.cida)) {
+      query = query.in('cida', filters.cida);
+    } else {
+      query = query.ilike('cida', `%${filters.cida}%`);
+    }
   }
 
   if (filters?.tomador) {
-    query = query.ilike('tomador', `%${filters.tomador}%`);
+    if (Array.isArray(filters.tomador)) {
+      query = query.in('tomador', filters.tomador);
+    } else {
+      query = query.ilike('tomador', `%${filters.tomador}%`);
+    }
   }
 
   if (filters?.mesoregiao) {
-    query = query.eq('mesoregiao', filters.mesoregiao);
+    if (Array.isArray(filters.mesoregiao)) {
+      query = query.in('mesoregiao', filters.mesoregiao);
+    } else {
+      query = query.eq('mesoregiao', filters.mesoregiao);
+    }
   }
 
   if (filters?.data_des_inicio) {
@@ -890,11 +914,11 @@ export async function montarPayloadRoteirizacao(
   filialNome: string,
   filters?: {
     status_validacao?: 'valida' | 'invalida';
-    filial?: string;
-    uf?: string;
-    destinatario?: string;
-    cida?: string;
-    tomador?: string;
+    filial?: string | string[];
+    uf?: string | string[];
+    destinatario?: string | string[];
+    cida?: string | string[];
+    tomador?: string | string[];
     data_des_inicio?: string;
     data_des_fim?: string;
     dle_inicio?: string;
@@ -903,7 +927,7 @@ export async function montarPayloadRoteirizacao(
     agendam_fim?: string;
     data_nf_inicio?: string;
     data_nf_fim?: string;
-    mesoregiao?: string;
+    mesoregiao?: string | string[];
   }
 ) {
   try {
@@ -914,27 +938,51 @@ export async function montarPayloadRoteirizacao(
       .eq('status_validacao', 'valida');
 
     if (filters?.filial) {
-      carteiraQuery = carteiraQuery.eq('filial', filters.filial);
+      if (Array.isArray(filters.filial)) {
+        carteiraQuery = carteiraQuery.in('filial', filters.filial);
+      } else {
+        carteiraQuery = carteiraQuery.eq('filial', filters.filial);
+      }
     }
 
     if (filters?.uf) {
-      carteiraQuery = carteiraQuery.eq('uf', filters.uf);
+      if (Array.isArray(filters.uf)) {
+        carteiraQuery = carteiraQuery.in('uf', filters.uf);
+      } else {
+        carteiraQuery = carteiraQuery.eq('uf', filters.uf);
+      }
     }
 
     if (filters?.destinatario) {
-      carteiraQuery = carteiraQuery.ilike('destinatario', `%${filters.destinatario}%`);
+      if (Array.isArray(filters.destinatario)) {
+        carteiraQuery = carteiraQuery.in('destinatario', filters.destinatario);
+      } else {
+        carteiraQuery = carteiraQuery.ilike('destinatario', `%${filters.destinatario}%`);
+      }
     }
 
     if (filters?.cida) {
-      carteiraQuery = carteiraQuery.ilike('cida', `%${filters.cida}%`);
+      if (Array.isArray(filters.cida)) {
+        carteiraQuery = carteiraQuery.in('cida', filters.cida);
+      } else {
+        carteiraQuery = carteiraQuery.ilike('cida', `%${filters.cida}%`);
+      }
     }
 
     if (filters?.tomador) {
-      carteiraQuery = carteiraQuery.ilike('tomador', `%${filters.tomador}%`);
+      if (Array.isArray(filters.tomador)) {
+        carteiraQuery = carteiraQuery.in('tomador', filters.tomador);
+      } else {
+        carteiraQuery = carteiraQuery.ilike('tomador', `%${filters.tomador}%`);
+      }
     }
 
     if (filters?.mesoregiao) {
-      carteiraQuery = carteiraQuery.eq('mesoregiao', filters.mesoregiao);
+      if (Array.isArray(filters.mesoregiao)) {
+        carteiraQuery = carteiraQuery.in('mesoregiao', filters.mesoregiao);
+      } else {
+        carteiraQuery = carteiraQuery.eq('mesoregiao', filters.mesoregiao);
+      }
     }
 
     if (filters?.data_des_inicio) {
