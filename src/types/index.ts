@@ -126,3 +126,10 @@ export interface CreateUserData {
   role: Role;
   filial_id: string;
 }
+
+export type TipoRoteirizacao = 'carteira' | 'frota';
+
+export interface ConfiguracaoFrota {
+  perfil: string;
+  quantidade: number;
+}

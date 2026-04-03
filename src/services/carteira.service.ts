@@ -780,6 +780,9 @@ export async function getCarteiraItems(
     dle_fim?: string;
     agendam_inicio?: string;
     agendam_fim?: string;
+    data_nf_inicio?: string;
+    data_nf_fim?: string;
+    mesoregiao?: string;
   }
 ) {
   let query = supabase
@@ -794,7 +797,7 @@ export async function getCarteiraItems(
   }
 
   if (filters?.filial) {
-    query = query.ilike('filial', `%${filters.filial}%`);
+    query = query.eq('filial', filters.filial);
   }
 
   if (filters?.uf) {
@@ -811,6 +814,10 @@ export async function getCarteiraItems(
 
   if (filters?.tomador) {
     query = query.ilike('tomador', `%${filters.tomador}%`);
+  }
+
+  if (filters?.mesoregiao) {
+    query = query.eq('mesoregiao', filters.mesoregiao);
   }
 
   if (filters?.data_des_inicio) {
@@ -835,6 +842,14 @@ export async function getCarteiraItems(
 
   if (filters?.agendam_fim) {
     query = query.lte('agendam', filters.agendam_fim);
+  }
+
+  if (filters?.data_nf_inicio) {
+    query = query.gte('data_nf', filters.data_nf_inicio);
+  }
+
+  if (filters?.data_nf_fim) {
+    query = query.lte('data_nf', filters.data_nf_fim);
   }
 
   const { data, error, count } = await query;
@@ -886,6 +901,9 @@ export async function montarPayloadRoteirizacao(
     dle_fim?: string;
     agendam_inicio?: string;
     agendam_fim?: string;
+    data_nf_inicio?: string;
+    data_nf_fim?: string;
+    mesoregiao?: string;
   }
 ) {
   try {
@@ -896,7 +914,7 @@ export async function montarPayloadRoteirizacao(
       .eq('status_validacao', 'valida');
 
     if (filters?.filial) {
-      carteiraQuery = carteiraQuery.ilike('filial', `%${filters.filial}%`);
+      carteiraQuery = carteiraQuery.eq('filial', filters.filial);
     }
 
     if (filters?.uf) {
@@ -913,6 +931,10 @@ export async function montarPayloadRoteirizacao(
 
     if (filters?.tomador) {
       carteiraQuery = carteiraQuery.ilike('tomador', `%${filters.tomador}%`);
+    }
+
+    if (filters?.mesoregiao) {
+      carteiraQuery = carteiraQuery.eq('mesoregiao', filters.mesoregiao);
     }
 
     if (filters?.data_des_inicio) {
@@ -937,6 +959,14 @@ export async function montarPayloadRoteirizacao(
 
     if (filters?.agendam_fim) {
       carteiraQuery = carteiraQuery.lte('agendam', filters.agendam_fim);
+    }
+
+    if (filters?.data_nf_inicio) {
+      carteiraQuery = carteiraQuery.gte('data_nf', filters.data_nf_inicio);
+    }
+
+    if (filters?.data_nf_fim) {
+      carteiraQuery = carteiraQuery.lte('data_nf', filters.data_nf_fim);
     }
 
     const { data: carteiraItems, error: carteiraError } = await carteiraQuery;

@@ -24,6 +24,8 @@ export interface CarteiraItem {
   erro_validacao: string | null;
 }
 
+import type { TipoRoteirizacao, ConfiguracaoFrota } from '../types';
+
 export interface PayloadMotor {
   carteira: Array<Record<string, any>>;
   veiculos: Veiculo[];
@@ -38,6 +40,8 @@ export interface PayloadMotor {
     modelo_roteirizacao: string;
     filtros_aplicados: Record<string, any>;
     origem_sistema: string;
+    tipo_roteirizacao: TipoRoteirizacao;
+    configuracao_frota: ConfiguracaoFrota[];
   };
 }
 
@@ -91,11 +95,44 @@ export async function buscarCarteiraValida(
     if (filtros.uf) {
       query = query.eq('uf', filtros.uf);
     }
-    if (filtros.cidade) {
-      query = query.eq('cida', filtros.cidade);
+    if (filtros.cida) {
+      query = query.ilike('cida', `%${filtros.cida}%`);
     }
     if (filtros.filial) {
       query = query.eq('filial', filtros.filial);
+    }
+    if (filtros.destinatario) {
+      query = query.ilike('destinatario', `%${filtros.destinatario}%`);
+    }
+    if (filtros.tomador) {
+      query = query.ilike('tomador', `%${filtros.tomador}%`);
+    }
+    if (filtros.mesoregiao) {
+      query = query.eq('mesoregiao', filtros.mesoregiao);
+    }
+    if (filtros.data_des_inicio) {
+      query = query.gte('data_des', filtros.data_des_inicio);
+    }
+    if (filtros.data_des_fim) {
+      query = query.lte('data_des', filtros.data_des_fim);
+    }
+    if (filtros.dle_inicio) {
+      query = query.gte('dle', filtros.dle_inicio);
+    }
+    if (filtros.dle_fim) {
+      query = query.lte('dle', filtros.dle_fim);
+    }
+    if (filtros.agendam_inicio) {
+      query = query.gte('agendam', filtros.agendam_inicio);
+    }
+    if (filtros.agendam_fim) {
+      query = query.lte('agendam', filtros.agendam_fim);
+    }
+    if (filtros.data_nf_inicio) {
+      query = query.gte('data_nf', filtros.data_nf_inicio);
+    }
+    if (filtros.data_nf_fim) {
+      query = query.lte('data_nf', filtros.data_nf_fim);
     }
   }
 
@@ -184,7 +221,9 @@ export async function montarPayloadMotor(
   usuarioNome: string,
   filialNome: string,
   modeloRoteirizacao: string,
-  filtros: Record<string, any> = {}
+  filtros: Record<string, any> = {},
+  tipoRoteirizacao: TipoRoteirizacao = 'carteira',
+  configuracaoFrota: ConfiguracaoFrota[] = []
 ): Promise<PayloadMotor> {
   const [carteira, veiculos, regionalidades] = await Promise.all([
     buscarCarteiraValida(uploadId, filtros),
@@ -206,6 +245,8 @@ export async function montarPayloadMotor(
       modelo_roteirizacao: modeloRoteirizacao,
       filtros_aplicados: filtros,
       origem_sistema: 'Sistema 1',
+      tipo_roteirizacao: tipoRoteirizacao,
+      configuracao_frota: configuracaoFrota,
     },
   };
 }

@@ -206,6 +206,17 @@ export function Roteirizacao() {
       return;
     }
 
+    const tipoRoteirizacao = activeFilters.tipo_roteirizacao || 'carteira';
+    const configuracaoFrota = activeFilters.configuracao_frota || [];
+
+    if (tipoRoteirizacao === 'frota') {
+      const totalManifestos = configuracaoFrota.reduce((sum, config) => sum + config.quantidade, 0);
+      if (totalManifestos === 0) {
+        setError('Configure ao menos um perfil com quantidade maior que 0');
+        return;
+      }
+    }
+
     setIsRoteirizando(true);
     setError(null);
     setStatusRodada(null);
@@ -223,6 +234,7 @@ export function Roteirizacao() {
         upload_id: currentUpload.id,
         rodada_id: rodadaId,
         total_cargas: currentUpload.total_validas,
+        tipo_roteirizacao: tipoRoteirizacao,
       });
 
       const payload = await montarPayloadMotor(
@@ -232,7 +244,9 @@ export function Roteirizacao() {
         profile.nome,
         profile.filial?.nome || 'Filial',
         'padrao',
-        activeFilters
+        activeFilters,
+        tipoRoteirizacao,
+        configuracaoFrota
       );
 
       await salvarPayloadEnviado(rodadaId, payload);
@@ -254,7 +268,11 @@ export function Roteirizacao() {
         status_resposta: resposta.status,
       });
 
-      const alertMessage = `Roteirização concluída com sucesso!\n\n${resposta.mensagem || 'Processamento finalizado'}`;
+      const tipoMsg = tipoRoteirizacao === 'frota'
+        ? `\n\nModo: Frota (${configuracaoFrota.length} perfis configurados)`
+        : '\n\nModo: Carteira (maximização)';
+
+      const alertMessage = `Roteirização concluída com sucesso!${tipoMsg}\n\n${resposta.mensagem || 'Processamento finalizado'}`;
       const resumoMsg = resposta.resumo
         ? `\n\nResumo:\n- Total carteira: ${resposta.resumo.total_carteira}\n- Total roteirizado: ${resposta.resumo.total_roteirizado}\n- Total não roteirizado: ${resposta.resumo.total_nao_roteirizado}\n- Manifestos fechados: ${resposta.resumo.total_manifestos_fechados}\n- Manifestos compostos: ${resposta.resumo.total_manifestos_compostos}\n- Ocupação média peso: ${resposta.resumo.ocupacao_media_peso.toFixed(1)}%\n- Ocupação média volume: ${resposta.resumo.ocupacao_media_volume.toFixed(1)}%`
         : '';
@@ -507,7 +525,9 @@ export function Roteirizacao() {
                       ) : (
                         <>
                           <Download size={20} />
-                          Gerar Roteirização ({currentUpload.total_validas} linhas válidas)
+                          {activeFilters.tipo_roteirizacao === 'frota' && activeFilters.configuracao_frota && activeFilters.configuracao_frota.length > 0
+                            ? `Gerar Roteirização - Modo Frota (${activeFilters.configuracao_frota.reduce((sum, c) => sum + c.quantidade, 0)} manifestos)`
+                            : `Gerar Roteirização - Modo Carteira (${currentUpload.total_validas} linhas válidas)`}
                         </>
                       )}
                     </Button>
@@ -582,6 +602,7 @@ export function Roteirizacao() {
                 onFilterChange={handleFilterChange}
                 isAdmin={profile?.role === 'admin'}
                 userFilial={profile?.filial_id}
+                uploadId={currentUpload.id}
               />
             )}
 
