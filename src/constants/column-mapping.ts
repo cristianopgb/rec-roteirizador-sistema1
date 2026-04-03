@@ -51,28 +51,88 @@ export const COLUMN_TRANSFORMATION_MAP: Record<
   'Lon.': { field: 'lon', transform: parseDecimal },
 
   // ==================== TEXT FIELDS ====================
-  'Conf': { field: 'conf', transform: (v: any) => (v ? String(v) : undefined) },
-  'Classifi': { field: 'classifi', transform: (v: any) => (v ? String(v) : undefined) },
-  'Tomador': { field: 'tomador', transform: (v: any) => (v ? String(v) : undefined) },
-  'Destinatário': { field: 'destinatario', transform: (v: any) => (v ? String(v) : undefined) },
-  'Bairro': { field: 'bairro', transform: (v: any) => (v ? String(v) : undefined) },
-  'Cida': { field: 'cida', transform: (v: any) => (v ? String(v) : undefined) },
-  'UF': { field: 'uf', transform: (v: any) => (v ? String(v) : undefined) },
-  'NF / Serie': { field: 'nf_serie', transform: (v: any) => (v ? String(v) : undefined) },
-  'Tipo Carga': { field: 'tipo_carga', transform: (v: any) => (v ? String(v) : undefined) },
-  'Região': { field: 'regiao', transform: (v: any) => (v ? String(v) : undefined) },
-  'Sub-Região': { field: 'sub_regiao', transform: (v: any) => (v ? String(v) : undefined) },
+  'Conf': {
+    field: 'conf',
+    transform: (v: any) => (v === null || v === undefined || String(v).trim() === '' ? undefined : String(v))
+  },
+  'Classifi': {
+    field: 'classifi',
+    transform: (v: any) => (v === null || v === undefined || String(v).trim() === '' ? undefined : String(v))
+  },
+  'Tomador': {
+    field: 'tomador',
+    transform: (v: any) => (v === null || v === undefined || String(v).trim() === '' ? undefined : String(v))
+  },
+  'Destinatário': {
+    field: 'destinatario',
+    transform: (v: any) => (v === null || v === undefined || String(v).trim() === '' ? undefined : String(v))
+  },
+  'Bairro': {
+    field: 'bairro',
+    transform: (v: any) => (v === null || v === undefined || String(v).trim() === '' ? undefined : String(v))
+  },
+  'Cida': {
+    field: 'cida',
+    transform: (v: any) => (v === null || v === undefined || String(v).trim() === '' ? undefined : String(v))
+  },
+  'UF': {
+    field: 'uf',
+    transform: (v: any) => (v === null || v === undefined || String(v).trim() === '' ? undefined : String(v))
+  },
+  'NF / Serie': {
+    field: 'nf_serie',
+    transform: (v: any) => (v === null || v === undefined || String(v).trim() === '' ? undefined : String(v))
+  },
+  'Tipo Carga': {
+    field: 'tipo_carga',
+    transform: (v: any) => (v === null || v === undefined || String(v).trim() === '' ? undefined : String(v))
+  },
+  'Região': {
+    field: 'regiao',
+    transform: (v: any) => (v === null || v === undefined || String(v).trim() === '' ? undefined : String(v))
+  },
+  'Sub-Região': {
+    field: 'sub_regiao',
+    transform: (v: any) => (v === null || v === undefined || String(v).trim() === '' ? undefined : String(v))
+  },
   'Ocorrências NFs': {
     field: 'ocorrencias_nfs',
-    transform: (v: any) => (v ? String(v) : undefined),
+    transform: (v: any) => (v === null || v === undefined || String(v).trim() === '' ? undefined : String(v)),
   },
-  'Remetente': { field: 'remetente', transform: (v: any) => (v ? String(v) : undefined) },
-  'Observação R': { field: 'observacao_r', transform: (v: any) => (v ? String(v) : undefined) },
-  'Ref Cliente': { field: 'ref_cliente', transform: (v: any) => (v ? String(v) : undefined) },
-  'Cidade Dest.': { field: 'cidade_dest', transform: (v: any) => (v ? String(v) : undefined) },
-  'Mesoregião': { field: 'mesoregiao', transform: (v: any) => (v ? String(v) : undefined) },
-  'Agenda': { field: 'agenda', transform: (v: any) => (v ? String(v) : undefined) },
-  'Tipo C': { field: 'tipo_c', transform: (v: any) => (v ? String(v) : undefined) },
-  'Última': { field: 'ultima', transform: (v: any) => (v ? String(v) : undefined) },
-  'Status': { field: 'status', transform: (v: any) => (v ? String(v) : undefined) },
+  'Remetente': {
+    field: 'remetente',
+    transform: (v: any) => (v === null || v === undefined || String(v).trim() === '' ? undefined : String(v))
+  },
+  'Observação R': {
+    field: 'observacao_r',
+    transform: (v: any) => (v === null || v === undefined || String(v).trim() === '' ? undefined : String(v))
+  },
+  'Ref Cliente': {
+    field: 'ref_cliente',
+    transform: (v: any) => (v === null || v === undefined || String(v).trim() === '' ? undefined : String(v))
+  },
+  'Cidade Dest.': {
+    field: 'cidade_dest',
+    transform: (v: any) => (v === null || v === undefined || String(v).trim() === '' ? undefined : String(v))
+  },
+  'Mesoregião': {
+    field: 'mesoregiao',
+    transform: (v: any) => (v === null || v === undefined || String(v).trim() === '' ? undefined : String(v))
+  },
+  'Agenda': {
+    field: 'agenda',
+    transform: (v: any) => (v === null || v === undefined || String(v).trim() === '' ? undefined : String(v))
+  },
+  'Tipo C': {
+    field: 'tipo_c',
+    transform: (v: any) => (v === null || v === undefined || String(v).trim() === '' ? undefined : String(v))
+  },
+  'Última': {
+    field: 'ultima',
+    transform: (v: any) => (v === null || v === undefined || String(v).trim() === '' ? undefined : String(v))
+  },
+  'Status': {
+    field: 'status',
+    transform: (v: any) => (v === null || v === undefined || String(v).trim() === '' ? undefined : String(v))
+  },
 };

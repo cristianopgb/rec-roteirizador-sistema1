@@ -44,7 +44,8 @@ export function parseIntegerSafe(value: any): number | null {
 
 /**
  * Parses Brazilian date format (DD/MM/YYYY) to ISO date (YYYY-MM-DD)
- * @param value - Raw date value from Excel
+ * Handles: Date objects, Excel serial numbers, and DD/MM/YYYY strings
+ * @param value - Raw date value from Excel (Date, number, or string)
  * @returns ISO date string or null if invalid
  */
 export function parseDateBR(value: any): string | null {
@@ -52,6 +53,33 @@ export function parseDateBR(value: any): string | null {
     return null;
   }
 
+  // Case 1: JavaScript Date object
+  if (value instanceof Date) {
+    if (isNaN(value.getTime())) {
+      console.warn(`parseDateBR: invalid Date object:`, value);
+      return null;
+    }
+    return value.toISOString().split('T')[0];
+  }
+
+  // Case 2: Excel serial number (number between 1 and 100000)
+  if (typeof value === 'number') {
+    if (value > 0 && value < 100000) {
+      // Excel serial date: days since 1900-01-01 (with bugs for 1900 leap year)
+      const excelEpoch = new Date(1899, 11, 30); // Dec 30, 1899
+      const date = new Date(excelEpoch.getTime() + value * 24 * 60 * 60 * 1000);
+      if (isNaN(date.getTime())) {
+        console.warn(`parseDateBR: invalid Excel serial number: ${value}`);
+        return null;
+      }
+      return date.toISOString().split('T')[0];
+    } else {
+      console.warn(`parseDateBR: number out of Excel date range: ${value}`);
+      return null;
+    }
+  }
+
+  // Case 3: String format (DD/MM/YYYY)
   let strValue = String(value).trim();
 
   // Remove trailing comma if present
@@ -95,7 +123,8 @@ export function parseDateBR(value: any): string | null {
 
 /**
  * Parses Brazilian datetime format (DD/MM/YYYY HH:MM:SS) to ISO timestamp (YYYY-MM-DD HH:MM:SS)
- * @param value - Raw datetime value from Excel
+ * Handles: Date objects, Excel serial numbers, and DD/MM/YYYY HH:MM:SS strings
+ * @param value - Raw datetime value from Excel (Date, number, or string)
  * @returns ISO timestamp string or null if invalid
  */
 export function parseDateTimeBR(value: any): string | null {
@@ -103,6 +132,39 @@ export function parseDateTimeBR(value: any): string | null {
     return null;
   }
 
+  // Case 1: JavaScript Date object
+  if (value instanceof Date) {
+    if (isNaN(value.getTime())) {
+      console.warn(`parseDateTimeBR: invalid Date object:`, value);
+      return null;
+    }
+    const isoString = value.toISOString();
+    const datePart = isoString.split('T')[0];
+    const timePart = isoString.split('T')[1].split('.')[0];
+    return `${datePart} ${timePart}`;
+  }
+
+  // Case 2: Excel serial number with fractional time (number between 1 and 100000)
+  if (typeof value === 'number') {
+    if (value > 0 && value < 100000) {
+      // Excel serial date: days since 1900-01-01 (with bugs for 1900 leap year)
+      const excelEpoch = new Date(1899, 11, 30); // Dec 30, 1899
+      const date = new Date(excelEpoch.getTime() + value * 24 * 60 * 60 * 1000);
+      if (isNaN(date.getTime())) {
+        console.warn(`parseDateTimeBR: invalid Excel serial number: ${value}`);
+        return null;
+      }
+      const isoString = date.toISOString();
+      const datePart = isoString.split('T')[0];
+      const timePart = isoString.split('T')[1].split('.')[0];
+      return `${datePart} ${timePart}`;
+    } else {
+      console.warn(`parseDateTimeBR: number out of Excel date range: ${value}`);
+      return null;
+    }
+  }
+
+  // Case 3: String format (DD/MM/YYYY HH:MM:SS)
   let strValue = String(value).trim();
 
   // Remove trailing comma if present
@@ -255,4 +317,22 @@ export function parseDecimal(value: any): number | null {
   }
 
   return parsed;
+}
+
+/**
+ * Parses text values safely, preserving valid falsy values like "0"
+ * @param value - Raw text value from Excel
+ * @returns String value or undefined if truly empty
+ */
+export function parseTextSafe(value: any): string | undefined {
+  if (value === null || value === undefined) {
+    return undefined;
+  }
+
+  const strValue = String(value).trim();
+  if (strValue === '') {
+    return undefined;
+  }
+
+  return strValue;
 }

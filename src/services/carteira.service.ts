@@ -9,6 +9,7 @@ import {
   StructureValidationResult,
 } from '../constants/carteira-columns';
 import { COLUMN_TRANSFORMATION_MAP } from '../constants/column-mapping';
+import { parseNumberBR } from '../utils/column-transformers';
 
 /**
  * Normalizes a header name by:
@@ -255,8 +256,8 @@ export function validateCarteiraRow(
   if (peso === undefined || peso === null || peso === '') {
     errors.push('Peso é obrigatório');
   } else {
-    const pesoNum = typeof peso === 'number' ? peso : parseFloat(String(peso).replace(',', '.'));
-    if (isNaN(pesoNum)) {
+    const pesoNum = parseNumberBR(peso);
+    if (pesoNum === null) {
       errors.push('Peso deve ser um número válido');
     }
   }
@@ -266,8 +267,8 @@ export function validateCarteiraRow(
   if (vlrMerc === undefined || vlrMerc === null || vlrMerc === '') {
     errors.push('Vlr.Merc. é obrigatório');
   } else {
-    const vlrMercNum = typeof vlrMerc === 'number' ? vlrMerc : parseFloat(String(vlrMerc).replace(',', '.'));
-    if (isNaN(vlrMercNum)) {
+    const vlrMercNum = parseNumberBR(vlrMerc);
+    if (vlrMercNum === null) {
       errors.push('Vlr.Merc. deve ser um número válido');
     }
   }
@@ -275,8 +276,8 @@ export function validateCarteiraRow(
   // Validate Lat. (optional, but if present must be valid number)
   const lat = row['Lat.'];
   if (lat !== undefined && lat !== null && lat !== '') {
-    const latNum = typeof lat === 'number' ? lat : parseFloat(String(lat).replace(',', '.'));
-    if (isNaN(latNum)) {
+    const latNum = parseNumberBR(lat);
+    if (latNum === null) {
       errors.push('Lat. deve ser um número válido');
     }
   }
@@ -284,8 +285,8 @@ export function validateCarteiraRow(
   // Validate Lon. (optional, but if present must be valid number)
   const lon = row['Lon.'];
   if (lon !== undefined && lon !== null && lon !== '') {
-    const lonNum = typeof lon === 'number' ? lon : parseFloat(String(lon).replace(',', '.'));
-    if (isNaN(lonNum)) {
+    const lonNum = parseNumberBR(lon);
+    if (lonNum === null) {
       errors.push('Lon. deve ser um número válido');
     }
   }
@@ -580,7 +581,7 @@ export async function processCarteiraUpload(
     }
 
     // Log specific romane 564 before insert
-    const romane564 = items.find(item => item.romane === '564');
+    const romane564 = items.find(item => String(item.romane).trim() === '564');
     if (romane564) {
       console.log('\n[DEBUG] ========== ROMANE 564 - DADOS ANTES DO INSERT ==========');
       console.log('[DEBUG] linha_numero:', romane564.linha_numero);
@@ -958,44 +959,44 @@ export async function montarPayloadRoteirizacao(
 
     // Reconstruct Excel format from database columns
     const carteira = carteiraItems?.map((item) => ({
-      'Filial': item.filial || '',
-      'Romane': item.romane || '',
-      'Filial (origem)': item.filial_origem || '',
-      'Série': item.serie || '',
-      'Nro Doc.': item.nro_doc || '',
-      'Data Des': item.data_des || '',
-      'Data NF': item.data_nf || '',
-      'D.L.E.': item.dle || '',
-      'Agendam.': item.agendam || '',
-      'Palet': item.palet || '',
-      'Conf': item.conf || '',
-      'Peso': item.peso || 0,
-      'Vlr.Merc.': item.vlr_merc || 0,
-      'Qtd.': item.qtd || 0,
-      'Peso C': item.peso_c || 0,
-      'Classifi': item.classifi || '',
-      'Tomador': item.tomador || '',
-      'Destinatário': item.destinatario || '',
-      'Bairro': item.bairro || '',
-      'Cida': item.cida || '',
-      'UF': item.uf || '',
-      'NF / Serie': item.nf_serie || '',
-      'Tipo Carga': item.tipo_carga || '',
-      'Qtd.NF': item.qtd_nf || 0,
-      'Região': item.regiao || '',
-      'Sub-Região': item.sub_regiao || '',
-      'Ocorrências NFs': item.ocorrencias_nfs || '',
-      'Remetente': item.remetente || '',
-      'Observação R': item.observacao_r || '',
-      'Ref Cliente': item.ref_cliente || '',
-      'Cidade Dest.': item.cidade_dest || '',
-      'Mesoregião': item.mesoregiao || '',
-      'Agenda': item.agenda || '',
-      'Tipo C': item.tipo_c || '',
-      'Última': item.ultima || '',
-      'Status': item.status || '',
-      'Lat.': item.lat || 0,
-      'Lon.': item.lon || 0,
+      'Filial': item.filial ?? '',
+      'Romane': item.romane ?? '',
+      'Filial (origem)': item.filial_origem ?? '',
+      'Série': item.serie ?? '',
+      'Nro Doc.': item.nro_doc ?? '',
+      'Data Des': item.data_des ?? '',
+      'Data NF': item.data_nf ?? '',
+      'D.L.E.': item.dle ?? '',
+      'Agendam.': item.agendam ?? '',
+      'Palet': item.palet ?? '',
+      'Conf': item.conf ?? '',
+      'Peso': item.peso ?? 0,
+      'Vlr.Merc.': item.vlr_merc ?? 0,
+      'Qtd.': item.qtd ?? 0,
+      'Peso C': item.peso_c ?? 0,
+      'Classifi': item.classifi ?? '',
+      'Tomador': item.tomador ?? '',
+      'Destinatário': item.destinatario ?? '',
+      'Bairro': item.bairro ?? '',
+      'Cida': item.cida ?? '',
+      'UF': item.uf ?? '',
+      'NF / Serie': item.nf_serie ?? '',
+      'Tipo Carga': item.tipo_carga ?? '',
+      'Qtd.NF': item.qtd_nf ?? 0,
+      'Região': item.regiao ?? '',
+      'Sub-Região': item.sub_regiao ?? '',
+      'Ocorrências NFs': item.ocorrencias_nfs ?? '',
+      'Remetente': item.remetente ?? '',
+      'Observação R': item.observacao_r ?? '',
+      'Ref Cliente': item.ref_cliente ?? '',
+      'Cidade Dest.': item.cidade_dest ?? '',
+      'Mesoregião': item.mesoregiao ?? '',
+      'Agenda': item.agenda ?? '',
+      'Tipo C': item.tipo_c ?? '',
+      'Última': item.ultima ?? '',
+      'Status': item.status ?? '',
+      'Lat.': item.lat ?? 0,
+      'Lon.': item.lon ?? 0,
     })) || [];
 
     const payload = {
