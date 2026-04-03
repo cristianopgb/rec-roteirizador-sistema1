@@ -133,3 +133,53 @@ export interface ConfiguracaoFrota {
   perfil: string;
   quantidade: number;
 }
+
+export interface CarteiraItem {
+  id: string;
+  upload_id: string;
+  linha_numero: number;
+  status_validacao: 'valida' | 'invalida';
+  erro_validacao?: string | null;
+
+  filial?: number | null;
+  romane?: number | null;
+  filial_origem?: number | null;
+  serie?: number | null;
+  nro_doc?: number | null;
+  data_des?: string | null;
+  data_nf?: string | null;
+  dle?: string | null;
+  agendam?: string | null;
+  palet?: number | null;
+  conf?: string | null;
+  peso?: number | null;
+  vlr_merc?: number | null;
+  qtd?: number | null;
+  peso_c?: number | null;
+  classifi?: string | null;
+  tomador?: string | null;
+  destinatario?: string | null;
+  bairro?: string | null;
+  cida?: string | null;
+  uf?: string | null;
+  nf_serie?: string | null;
+  tipo_carga?: string | null;
+  qtd_nf?: number | null;
+  regiao?: string | null;
+  sub_regiao?: string | null;
+  ocorrencias_nfs?: string | null;
+  remetente?: string | null;
+  observacao_r?: string | null;
+  ref_cliente?: string | null;
+  cidade_dest?: string | null;
+  mesoregiao?: string | null;
+  agenda?: string | null;
+  tipo_c?: string | null;
+  ultima?: string | null;
+  status?: string | null;
+  lat?: number | null;
+  lon?: number | null;
+
+  dados_originais?: Record<string, any>;
+  created_at?: string;
+}

@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
 import { Badge } from '../ui/Badge';
 import type { CarteiraItem } from '../../types';
-import { COLUNAS_OBRIGATORIAS_EXCEL } from '../../constants/carteira-columns';
 
 interface CarteiraDataGridProps {
   items: CarteiraItem[];
@@ -55,88 +54,112 @@ export function CarteiraDataGrid({ items, itemsCount }: CarteiraDataGridProps) {
     return cols;
   }, []);
 
-  const formatValue = (item: CarteiraItem, key: string) => {
-    const rawData = item.dados_originais as Record<string, any>;
+  const formatDate = (dateStr: string | null | undefined) => {
+    if (!dateStr) return '-';
+    try {
+      const date = new Date(dateStr);
+      return date.toLocaleDateString('pt-BR');
+    } catch {
+      return dateStr;
+    }
+  };
 
+  const formatDateTime = (dateTimeStr: string | null | undefined) => {
+    if (!dateTimeStr) return '-';
+    try {
+      const date = new Date(dateTimeStr);
+      return date.toLocaleString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch {
+      return dateTimeStr;
+    }
+  };
+
+  const formatValue = (item: CarteiraItem, key: string) => {
     switch (key) {
       case 'linha_numero':
         return item.linha_numero;
       case 'filial':
-        return item.filial || '-';
+        return item.filial ?? '-';
       case 'romane':
-        return item.romane || '-';
+        return item.romane ?? '-';
+      case 'filial_origem':
+        return item.filial_origem ?? '-';
+      case 'serie':
+        return item.serie ?? '-';
       case 'nro_doc':
-        return item.nro_doc || '-';
-      case 'destinatario':
-        return item.destinatario || '-';
-      case 'cida':
-        return item.cida || '-';
-      case 'uf':
-        return item.uf || '-';
+        return item.nro_doc ?? '-';
+      case 'data_des':
+        return formatDate(item.data_des);
+      case 'data_nf':
+        return formatDate(item.data_nf);
+      case 'dle':
+        return formatDate(item.dle);
+      case 'agendam':
+        return formatDateTime(item.agendam);
+      case 'palet':
+        return item.palet ?? '-';
+      case 'conf':
+        return item.conf || '-';
       case 'peso':
         return item.peso ? item.peso.toFixed(2) : '-';
       case 'vlr_merc':
         return item.vlr_merc ? `R$ ${item.vlr_merc.toFixed(2)}` : '-';
+      case 'qtd':
+        return item.qtd ?? '-';
+      case 'peso_c':
+        return item.peso_c ? item.peso_c.toFixed(2) : '-';
+      case 'classifi':
+        return item.classifi || '-';
       case 'tomador':
         return item.tomador || '-';
-      case 'dle':
-        return rawData?.['D.L.E.'] || '-';
-      case 'agendam':
-        return rawData?.['Agendam.'] || '-';
-      case 'data_des':
-        return rawData?.['Data Des'] || '-';
-      case 'data_nf':
-        return rawData?.['Data NF'] || '-';
-      case 'filial_origem':
-        return rawData?.['Filial (origem)'] || '-';
-      case 'serie':
-        return rawData?.['Série'] || '-';
-      case 'palet':
-        return rawData?.['Palet'] || '-';
-      case 'conf':
-        return rawData?.['Conf'] || '-';
-      case 'qtd':
-        return rawData?.['Qtd.'] || '-';
-      case 'peso_c':
-        return rawData?.['Peso C'] || '-';
-      case 'classifi':
-        return rawData?.['Classifi'] || '-';
+      case 'destinatario':
+        return item.destinatario || '-';
       case 'bairro':
-        return rawData?.['Bairro'] || '-';
+        return item.bairro || '-';
+      case 'cida':
+        return item.cida || '-';
+      case 'uf':
+        return item.uf || '-';
       case 'nf_serie':
-        return rawData?.['NF / Serie'] || '-';
+        return item.nf_serie || '-';
       case 'tipo_carga':
-        return rawData?.['Tipo Carga'] || '-';
+        return item.tipo_carga || '-';
       case 'qtd_nf':
-        return rawData?.['Qtd.NF'] || '-';
+        return item.qtd_nf ?? '-';
       case 'regiao':
-        return rawData?.['Região'] || '-';
+        return item.regiao || '-';
       case 'sub_regiao':
-        return rawData?.['Sub-Região'] || '-';
+        return item.sub_regiao || '-';
       case 'ocorrencias_nfs':
-        return rawData?.['Ocorrências NFs'] || '-';
+        return item.ocorrencias_nfs || '-';
       case 'remetente':
-        return rawData?.['Remetente'] || '-';
+        return item.remetente || '-';
       case 'observacao_r':
-        return rawData?.['Observação R'] || '-';
+        return item.observacao_r || '-';
       case 'ref_cliente':
-        return rawData?.['Ref Cliente'] || '-';
+        return item.ref_cliente || '-';
       case 'cidade_dest':
-        return rawData?.['Cidade Dest.'] || '-';
+        return item.cidade_dest || '-';
       case 'mesoregiao':
-        return rawData?.['Mesoregião'] || '-';
+        return item.mesoregiao || '-';
       case 'agenda':
-        return rawData?.['Agenda'] || '-';
+        return item.agenda || '-';
       case 'tipo_c':
-        return rawData?.['Tipo C'] || '-';
+        return item.tipo_c || '-';
       case 'ultima':
-        return rawData?.['Última'] || '-';
+        return item.ultima || '-';
       case 'status':
-        return rawData?.['Status'] || '-';
+        return item.status || '-';
       case 'lat':
-        return rawData?.['Lat.'] || '-';
+        return item.lat ?? '-';
       case 'lon':
-        return rawData?.['Lon.'] || '-';
+        return item.lon ?? '-';
       case 'status_validacao':
         return (
           <div className="flex items-center gap-2">

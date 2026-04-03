@@ -10,6 +10,7 @@ import { Upload, CheckCircle, XCircle, AlertCircle, FileText, Download, Activity
 import { CarteiraFilters, CarteiraFilterValues } from '../components/carteira/CarteiraFilters';
 import { CarteiraDataGrid } from '../components/carteira/CarteiraDataGrid';
 import { HistoricoRodadas } from '../components/roteirizacao/HistoricoRodadas';
+import type { CarteiraItem } from '../types';
 import {
   processCarteiraUpload,
   getUploadById,
@@ -36,21 +37,6 @@ interface UploadStats {
   status: string;
   erro_estrutura?: string;
   created_at: string;
-}
-
-interface CarteiraItem {
-  id: string;
-  linha_numero: number;
-  status_validacao: 'valida' | 'invalida';
-  erro_validacao?: string;
-  filial?: string;
-  romane?: string;
-  nro_doc?: string;
-  destinatario?: string;
-  cida?: string;
-  uf?: string;
-  peso?: number;
-  vlr_merc?: number;
 }
 
 export function Roteirizacao() {
