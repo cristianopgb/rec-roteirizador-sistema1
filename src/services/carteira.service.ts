@@ -8,6 +8,7 @@ import {
   RowValidationResult,
   StructureValidationResult,
 } from '../constants/carteira-columns';
+import { COLUMN_TRANSFORMATION_MAP } from '../constants/column-mapping';
 
 /**
  * Normalizes a header name by:
@@ -183,22 +184,34 @@ interface CarteiraItem {
   linha_numero: number;
   status_validacao: 'valida' | 'invalida';
   erro_validacao?: string;
-  // All 38 columns as real database columns
-  filial?: string;
-  romane?: string;
-  filial_origem?: string;
-  serie?: string;
-  nro_doc?: string;
+
+  // INTEGER FIELDS
+  filial?: number;
+  romane?: number;
+  filial_origem?: number;
+  serie?: number;
+  nro_doc?: number;
+  qtd?: number;
+  qtd_nf?: number;
+  palet?: number;
+
+  // DATE FIELDS (YYYY-MM-DD)
   data_des?: string | null;
   data_nf?: string | null;
   dle?: string | null;
+
+  // TIMESTAMP FIELD (YYYY-MM-DD HH:MM:SS)
   agendam?: string | null;
-  palet?: string;
-  conf?: string;
+
+  // DECIMAL NUMBER FIELDS
   peso?: number;
   vlr_merc?: number;
-  qtd?: number;
   peso_c?: number;
+  lat?: number;
+  lon?: number;
+
+  // TEXT FIELDS
+  conf?: string;
   classifi?: string;
   tomador?: string;
   destinatario?: string;
@@ -207,7 +220,6 @@ interface CarteiraItem {
   uf?: string;
   nf_serie?: string;
   tipo_carga?: string;
-  qtd_nf?: number;
   regiao?: string;
   sub_regiao?: string;
   ocorrencias_nfs?: string;
@@ -220,8 +232,6 @@ interface CarteiraItem {
   tipo_c?: string;
   ultima?: string;
   status?: string;
-  lat?: number;
-  lon?: number;
 }
 
 
@@ -290,193 +300,21 @@ export function validateCarteiraRow(
   return { status: 'valida' };
 }
 
-/**
- * Safely parse a value as a number, handling Excel formats.
- * Detects Brazilian (1.234,56) and US (1,234.56) number formats.
- */
-function parseNumber(value: any): number | undefined {
-  if (value === undefined || value === null || value === '') {
-    return undefined;
-  }
-  if (typeof value === 'number') {
-    return value;
-  }
-
-  const strValue = String(value).trim();
-  if (strValue === '') {
-    return undefined;
-  }
-
-  // Check if contains both separators
-  const hasComma = strValue.includes(',');
-  const hasDot = strValue.includes('.');
-
-  let cleanedValue = strValue;
-
-  if (hasComma && hasDot) {
-    // Determine format by which separator comes last
-    const lastCommaIndex = strValue.lastIndexOf(',');
-    const lastDotIndex = strValue.lastIndexOf('.');
-
-    if (lastCommaIndex > lastDotIndex) {
-      // Brazilian format: 8.655,42
-      // Remove dots (thousands separator), replace comma with dot (decimal)
-      cleanedValue = strValue.replace(/\./g, '').replace(',', '.');
-    } else {
-      // US format: 8,655.42
-      // Remove commas (thousands separator), keep dot (decimal)
-      cleanedValue = strValue.replace(/,/g, '');
-    }
-  } else if (hasComma && !hasDot) {
-    // Only comma: assume decimal separator (Brazilian simple format: 123,45)
-    cleanedValue = strValue.replace(',', '.');
-  } else if (hasDot && !hasComma) {
-    // Only dot: already in US format or simple number
-    cleanedValue = strValue;
-  }
-
-  const num = parseFloat(cleanedValue);
-  return isNaN(num) ? undefined : num;
-}
 
 /**
- * Robustly normalize date values from Excel to PostgreSQL ISO format (YYYY-MM-DD).
- *
- * Handles:
- * - null/undefined/empty strings → null
- * - JavaScript Date objects → YYYY-MM-DD
- * - Excel serial numbers (e.g., 45329) → YYYY-MM-DD
- * - DD/MM/YYYY or D/M/YYYY strings → YYYY-MM-DD
- * - YYYY-MM-DD strings → validated and returned
- * - Invalid dates → null
- *
- * @param value - The date value from Excel (can be string, number, Date, null, undefined)
- * @param columnName - Optional column name for detailed error logging
- * @returns ISO date string (YYYY-MM-DD) or null if invalid/empty
+ * Apply column transformations using the centralized mapping.
+ * Maps Excel column names to database column names and applies type transformations.
  */
-function normalizeDateValue(value: any, columnName?: string): string | null {
-  // Handle null, undefined, empty string
-  if (value === null || value === undefined || value === '') {
-    return null;
+function applyColumnTransformations(rowObject: any): any {
+  const result: any = {};
+
+  for (const [excelColumnName, config] of Object.entries(COLUMN_TRANSFORMATION_MAP)) {
+    const rawValue = rowObject[excelColumnName];
+    const transformedValue = config.transform(rawValue);
+    result[config.field] = transformedValue;
   }
 
-  try {
-    // Case 1: JavaScript Date object
-    if (value instanceof Date) {
-      if (isNaN(value.getTime())) {
-        console.warn(`[normalizeDateValue] Invalid Date object for column "${columnName}":`, value);
-        return null;
-      }
-      return value.toISOString().split('T')[0];
-    }
-
-    // Case 2: Excel serial number (number between 1 and 100000)
-    if (typeof value === 'number') {
-      // Excel serial date: days since 1900-01-01 (with bugs for 1900 leap year)
-      if (value > 0 && value < 100000) {
-        // Excel incorrectly treats 1900 as a leap year, so we adjust
-        const excelEpoch = new Date(1899, 11, 30); // Dec 30, 1899
-        const date = new Date(excelEpoch.getTime() + value * 24 * 60 * 60 * 1000);
-        if (isNaN(date.getTime())) {
-          console.warn(`[normalizeDateValue] Invalid Excel serial number for column "${columnName}": ${value}`);
-          return null;
-        }
-        return date.toISOString().split('T')[0];
-      } else {
-        console.warn(`[normalizeDateValue] Number out of Excel date range for column "${columnName}": ${value}`);
-        return null;
-      }
-    }
-
-    // Case 3: String formats
-    if (typeof value === 'string') {
-      let trimmed = value.trim();
-
-      // Remove trailing comma if present (e.g., "26/02/2026 07:00:00,")
-      if (trimmed.endsWith(',')) {
-        trimmed = trimmed.slice(0, -1).trim();
-      }
-
-      // If contains space, extract date part before time (e.g., "09/02/2026 08:30:00")
-      if (trimmed.includes(' ')) {
-        const spaceParts = trimmed.split(' ');
-        if (spaceParts.length >= 2) {
-          // Extract the first part as the date
-          trimmed = spaceParts[0].trim();
-        }
-      }
-
-      // Already in YYYY-MM-DD format?
-      if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
-        const testDate = new Date(trimmed);
-        if (!isNaN(testDate.getTime())) {
-          return trimmed;
-        }
-      }
-
-      // DD/MM/YYYY or D/M/YYYY format
-      if (trimmed.includes('/')) {
-        const parts = trimmed.split('/');
-        if (parts.length === 3) {
-          const day = parseInt(parts[0], 10);
-          const month = parseInt(parts[1], 10);
-          const year = parseInt(parts[2], 10);
-
-          // Validate ranges
-          if (isNaN(day) || isNaN(month) || isNaN(year)) {
-            console.warn(`[normalizeDateValue] Non-numeric date parts for column "${columnName}": ${trimmed}`);
-            return null;
-          }
-
-          if (month < 1 || month > 12) {
-            console.warn(`[normalizeDateValue] Invalid month for column "${columnName}": ${trimmed} (month=${month})`);
-            return null;
-          }
-
-          if (day < 1 || day > 31) {
-            console.warn(`[normalizeDateValue] Invalid day for column "${columnName}": ${trimmed} (day=${day})`);
-            return null;
-          }
-
-          // Full year validation (handle 2-digit years)
-          let fullYear = year;
-          if (year < 100) {
-            // Assume 2000s for years < 100
-            fullYear = 2000 + year;
-          }
-
-          // Create date and validate it's actually valid (handles Feb 31, etc.)
-          const isoString = `${fullYear.toString().padStart(4, '0')}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
-          const testDate = new Date(isoString);
-
-          // Check if the date components match (catches invalid dates like Feb 31)
-          if (
-            testDate.getFullYear() === fullYear &&
-            testDate.getMonth() + 1 === month &&
-            testDate.getDate() === day
-          ) {
-            return isoString;
-          } else {
-            console.warn(`[normalizeDateValue] Calendrically invalid date for column "${columnName}": ${trimmed} → ${isoString}`);
-            return null;
-          }
-        }
-      }
-
-      // Try parsing as generic date string
-      const testDate = new Date(trimmed);
-      if (!isNaN(testDate.getTime())) {
-        return testDate.toISOString().split('T')[0];
-      }
-    }
-
-    // Unhandled type
-    console.warn(`[normalizeDateValue] Unhandled date type for column "${columnName}":`, typeof value, value);
-    return null;
-  } catch (error) {
-    console.error(`[normalizeDateValue] Error parsing date for column "${columnName}":`, value, error);
-    return null;
-  }
+  return result;
 }
 
 /**
@@ -488,50 +326,7 @@ function normalizeDateValue(value: any, columnName?: string): string | null {
  * - "Filial (origem)" = filial_origem (filial de onde a carga chegou)
  */
 function extractTypedColumns(row: any) {
-  // Extract the two filial values using renamed column names
-  const filial = row['Filial'] ? String(row['Filial']) : undefined;
-  const filialOrigem = row['Filial (origem)'] ? String(row['Filial (origem)']) : undefined;
-
-  return {
-    filial,
-    romane: row['Romane'] ? String(row['Romane']) : undefined,
-    filial_origem: filialOrigem,
-    serie: row['Série'] ? String(row['Série']) : undefined,
-    nro_doc: row['Nro Doc.'] ? String(row['Nro Doc.']) : undefined,
-    data_des: normalizeDateValue(row['Data Des'], 'Data Des'),
-    data_nf: normalizeDateValue(row['Data NF'], 'Data NF'),
-    dle: normalizeDateValue(row['D.L.E.'], 'D.L.E.'),
-    agendam: normalizeDateValue(row['Agendam.'], 'Agendam.'),
-    palet: row['Palet'] ? String(row['Palet']) : undefined,
-    conf: row['Conf'] ? String(row['Conf']) : undefined,
-    peso: parseNumber(row['Peso']),
-    vlr_merc: parseNumber(row['Vlr.Merc.']),
-    qtd: parseNumber(row['Qtd.']),
-    peso_c: parseNumber(row['Peso C']),
-    classifi: row['Classifi'] ? String(row['Classifi']) : undefined,
-    tomador: row['Tomador'] ? String(row['Tomador']) : undefined,
-    destinatario: row['Destinatário'] ? String(row['Destinatário']) : undefined,
-    bairro: row['Bairro'] ? String(row['Bairro']) : undefined,
-    cida: row['Cida'] ? String(row['Cida']) : undefined,
-    uf: row['UF'] ? String(row['UF']) : undefined,
-    nf_serie: row['NF / Serie'] ? String(row['NF / Serie']) : undefined,
-    tipo_carga: row['Tipo Carga'] ? String(row['Tipo Carga']) : undefined,
-    qtd_nf: parseNumber(row['Qtd.NF']),
-    regiao: row['Região'] ? String(row['Região']) : undefined,
-    sub_regiao: row['Sub-Região'] ? String(row['Sub-Região']) : undefined,
-    ocorrencias_nfs: row['Ocorrências NFs'] ? String(row['Ocorrências NFs']) : undefined,
-    remetente: row['Remetente'] ? String(row['Remetente']) : undefined,
-    observacao_r: row['Observação R'] ? String(row['Observação R']) : undefined,
-    ref_cliente: row['Ref Cliente'] ? String(row['Ref Cliente']) : undefined,
-    cidade_dest: row['Cidade Dest.'] ? String(row['Cidade Dest.']) : undefined,
-    mesoregiao: row['Mesoregião'] ? String(row['Mesoregião']) : undefined,
-    agenda: row['Agenda'] ? String(row['Agenda']) : undefined,
-    tipo_c: row['Tipo C'] ? String(row['Tipo C']) : undefined,
-    ultima: row['Última'] ? String(row['Última']) : undefined,
-    status: row['Status'] ? String(row['Status']) : undefined,
-    lat: parseNumber(row['Lat.']),
-    lon: parseNumber(row['Lon.']),
-  };
+  return applyColumnTransformations(row);
 }
 
 /**
@@ -674,7 +469,7 @@ export async function processCarteiraUpload(
       });
 
       // FORENSIC ANALYSIS: For ROMANE 564, log raw array structure
-      if (rowObject['Romane'] === '564') {
+      if (String(rowObject['Romane']).trim() === '564') {
         console.log('\n[DEBUG] ========== ROMANE 564 - ARRAY BRUTO COMPLETO ==========');
         console.log('[DEBUG] Array length:', rawRow.length);
         console.log('[DEBUG] Array completo:');
@@ -745,40 +540,28 @@ export async function processCarteiraUpload(
       const row = jsonData[i];
 
       // Log raw values for ROMANE 564
-      if (row['Romane'] === '564') {
-        console.log('\n[DEBUG] ========== ROMANE 564 - VALORES BRUTOS ==========');
-        console.log('[DEBUG] Datas:');
-        console.log('  - Data Des:', row['Data Des'], '(tipo:', typeof row['Data Des'], ')');
-        console.log('  - Data NF:', row['Data NF'], '(tipo:', typeof row['Data NF'], ')');
-        console.log('  - D.L.E.:', row['D.L.E.'], '(tipo:', typeof row['D.L.E.'], ')');
-        console.log('  - Agendam.:', row['Agendam.'], '(tipo:', typeof row['Agendam.'], ')');
-        console.log('[DEBUG] Números:');
-        console.log('  - Peso:', row['Peso'], '(tipo:', typeof row['Peso'], ')');
-        console.log('  - Vlr.Merc.:', row['Vlr.Merc.'], '(tipo:', typeof row['Vlr.Merc.'], ')');
-        console.log('  - Peso C:', row['Peso C'], '(tipo:', typeof row['Peso C'], ')');
-        console.log('[DEBUG] Coordenadas:');
-        console.log('  - Lat.:', row['Lat.'], '(tipo:', typeof row['Lat.'], ')');
-        console.log('  - Lon.:', row['Lon.'], '(tipo:', typeof row['Lon.'], ')');
+      if (String(row['Romane']).trim() === '564') {
+        console.log('\n========== ROMANE 564 - VALORES BRUTOS ==========');
+        console.log('BRUTO | Filial:', row['Filial'], '(tipo:', typeof row['Filial'], ')');
+        console.log('BRUTO | Romane:', row['Romane'], '(tipo:', typeof row['Romane'], ')');
+        console.log('BRUTO | D.L.E.:', row['D.L.E.'], '(tipo:', typeof row['D.L.E.'], ')');
+        console.log('BRUTO | Agendam.:', row['Agendam.'], '(tipo:', typeof row['Agendam.'], ')');
+        console.log('BRUTO | Peso:', row['Peso'], '(tipo:', typeof row['Peso'], ')');
+        console.log('BRUTO | Qtd.:', row['Qtd.'], '(tipo:', typeof row['Qtd.'], ')');
       }
 
       const validation = validateCarteiraRow(row);
       const typedColumns = extractTypedColumns(row);
 
-      // Log converted values for ROMANE 564
-      if (row['Romane'] === '564') {
-        console.log('\n[DEBUG] ========== ROMANE 564 - VALORES FINAIS ==========');
-        console.log('[DEBUG] Datas:');
-        console.log('  - data_des:', typedColumns.data_des);
-        console.log('  - data_nf:', typedColumns.data_nf);
-        console.log('  - dle:', typedColumns.dle);
-        console.log('  - agendam:', typedColumns.agendam);
-        console.log('[DEBUG] Números:');
-        console.log('  - peso:', typedColumns.peso);
-        console.log('  - vlr_merc:', typedColumns.vlr_merc);
-        console.log('  - peso_c:', typedColumns.peso_c);
-        console.log('[DEBUG] Coordenadas:');
-        console.log('  - lat:', typedColumns.lat);
-        console.log('  - lon:', typedColumns.lon);
+      // Log transformed values for ROMANE 564
+      if (String(row['Romane']).trim() === '564') {
+        console.log('\n========== ROMANE 564 - VALORES TRANSFORMADOS ==========');
+        console.log('TRANSFORMADO | filial:', typedColumns.filial, '(tipo:', typeof typedColumns.filial, ')');
+        console.log('TRANSFORMADO | romane:', typedColumns.romane, '(tipo:', typeof typedColumns.romane, ')');
+        console.log('TRANSFORMADO | dle:', typedColumns.dle);
+        console.log('TRANSFORMADO | agendam:', typedColumns.agendam);
+        console.log('TRANSFORMADO | peso:', typedColumns.peso, '(tipo:', typeof typedColumns.peso, ')');
+        console.log('TRANSFORMADO | qtd:', typedColumns.qtd, '(tipo:', typeof typedColumns.qtd, ')');
       }
 
       items.push({
@@ -831,38 +614,71 @@ export async function processCarteiraUpload(
         console.log('  - agendam:', batch[0].agendam);
       }
 
-      // Validate all date fields before insert
+      // Validate all fields before insert
       for (const item of batch) {
+        // Validate integer fields
+        const integerFields = [
+          { name: 'filial', value: item.filial },
+          { name: 'romane', value: item.romane },
+          { name: 'filial_origem', value: item.filial_origem },
+          { name: 'serie', value: item.serie },
+          { name: 'nro_doc', value: item.nro_doc },
+          { name: 'qtd', value: item.qtd },
+          { name: 'qtd_nf', value: item.qtd_nf },
+          { name: 'palet', value: item.palet },
+        ];
+
+        for (const field of integerFields) {
+          if (field.value !== null && field.value !== undefined) {
+            if (typeof field.value !== 'number' || !Number.isInteger(field.value)) {
+              throw new Error(
+                `Linha ${item.linha_numero}: Campo "${field.name}" deve ser inteiro, recebeu ${typeof field.value}: ${field.value}`
+              );
+            }
+          }
+        }
+
+        // Validate date fields (YYYY-MM-DD)
         const dateFields = [
           { name: 'data_des', value: item.data_des },
           { name: 'data_nf', value: item.data_nf },
           { name: 'dle', value: item.dle },
-          { name: 'agendam', value: item.agendam },
         ];
 
         for (const field of dateFields) {
           if (field.value !== null && field.value !== undefined) {
-            // Must be a string in YYYY-MM-DD format
             if (typeof field.value !== 'string') {
               throw new Error(
                 `Linha ${item.linha_numero}: Campo "${field.name}" deve ser string ou null, recebeu ${typeof field.value}: ${field.value}`
               );
             }
 
-            // Validate ISO format
             if (!/^\d{4}-\d{2}-\d{2}$/.test(field.value)) {
               throw new Error(
                 `Linha ${item.linha_numero}: Campo "${field.name}" não está em formato ISO (YYYY-MM-DD): "${field.value}"`
               );
             }
 
-            // Validate it's a valid date
             const testDate = new Date(field.value);
             if (isNaN(testDate.getTime())) {
               throw new Error(
                 `Linha ${item.linha_numero}: Campo "${field.name}" contém data inválida: "${field.value}"`
               );
             }
+          }
+        }
+
+        // Validate timestamp field (YYYY-MM-DD HH:MM:SS)
+        if (item.agendam !== null && item.agendam !== undefined) {
+          if (typeof item.agendam !== 'string') {
+            throw new Error(
+              `Linha ${item.linha_numero}: Campo "agendam" deve ser string timestamp ou null, recebeu ${typeof item.agendam}: ${item.agendam}`
+            );
+          }
+          if (!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(item.agendam)) {
+            throw new Error(
+              `Linha ${item.linha_numero}: Campo "agendam" não está em formato ISO timestamp (YYYY-MM-DD HH:MM:SS): "${item.agendam}"`
+            );
           }
         }
       }
@@ -877,28 +693,22 @@ export async function processCarteiraUpload(
     }
 
     // Validate romane 564 after insert
-    if (romane564) {
+    if (romane564 && String(romane564.romane).trim() === '564') {
       const { data: savedRomane564, error: queryError } = await supabase
         .from('carteira_itens')
-        .select('romane, data_des, data_nf, dle, agendam, peso, vlr_merc, peso_c, lat, lon')
-        .eq('romane', '564')
+        .select('filial, romane, dle, agendam, peso, qtd')
+        .eq('romane', 564)
         .eq('upload_id', upload.id)
         .maybeSingle();
 
       if (!queryError && savedRomane564) {
-        console.log('\n[DEBUG] ========== ROMANE 564 - COMPARAÇÃO ANTES/DEPOIS ==========');
-        console.log('[DEBUG] Datas:');
-        console.log('  - data_des    | Enviado:', romane564.data_des, '| Salvo:', savedRomane564.data_des);
-        console.log('  - data_nf     | Enviado:', romane564.data_nf, '| Salvo:', savedRomane564.data_nf);
-        console.log('  - dle         | Enviado:', romane564.dle, '| Salvo:', savedRomane564.dle);
-        console.log('  - agendam     | Enviado:', romane564.agendam, '| Salvo:', savedRomane564.agendam);
-        console.log('[DEBUG] Números:');
-        console.log('  - peso        | Enviado:', romane564.peso, '| Salvo:', savedRomane564.peso);
-        console.log('  - vlr_merc    | Enviado:', romane564.vlr_merc, '| Salvo:', savedRomane564.vlr_merc);
-        console.log('  - peso_c      | Enviado:', romane564.peso_c, '| Salvo:', savedRomane564.peso_c);
-        console.log('[DEBUG] Coordenadas:');
-        console.log('  - lat         | Enviado:', romane564.lat, '| Salvo:', savedRomane564.lat);
-        console.log('  - lon         | Enviado:', romane564.lon, '| Salvo:', savedRomane564.lon);
+        console.log('\n========== ROMANE 564 - VALORES SALVOS ==========');
+        console.log('SALVO | filial:', savedRomane564.filial);
+        console.log('SALVO | romane:', savedRomane564.romane);
+        console.log('SALVO | dle:', savedRomane564.dle);
+        console.log('SALVO | agendam:', savedRomane564.agendam);
+        console.log('SALVO | peso:', savedRomane564.peso);
+        console.log('SALVO | qtd:', savedRomane564.qtd);
       }
     }
 
