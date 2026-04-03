@@ -5,10 +5,10 @@ import { FileUpload } from '../components/ui/FileUpload';
 import { Button } from '../components/common/Button';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { Badge } from '../components/ui/Badge';
-import { Table } from '../components/ui/Table';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Upload, CheckCircle, XCircle, AlertCircle, FileText, Download, Activity } from 'lucide-react';
 import { CarteiraFilters, CarteiraFilterValues } from '../components/carteira/CarteiraFilters';
+import { CarteiraDataGrid } from '../components/carteira/CarteiraDataGrid';
 import { HistoricoRodadas } from '../components/roteirizacao/HistoricoRodadas';
 import {
   processCarteiraUpload,
@@ -607,69 +607,18 @@ export function Roteirizacao() {
             )}
 
             {!hasStructureError && carteiraItems.length > 0 && (
-              <div className="bg-white rounded-lg shadow p-6">
-                <h2 className="text-xl font-semibold text-gray-900 mb-4">
-                  Prévia dos Dados ({Math.min(50, itemsCount)} de {itemsCount})
-                </h2>
-
-                {isLoadingItems ? (
+              isLoadingItems ? (
+                <div className="bg-white rounded-lg shadow p-6">
                   <div className="flex justify-center py-12">
                     <LoadingSpinner />
                   </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <Table
-                      columns={[
-                        { key: 'linha_numero', label: 'Linha', width: '80px' },
-                        { key: 'filial', label: 'Filial', width: '100px' },
-                        { key: 'romane', label: 'Romane', width: '120px' },
-                        { key: 'nro_doc', label: 'Nro Doc.', width: '120px' },
-                        { key: 'destinatario', label: 'Destinatário', width: '200px' },
-                        { key: 'cida', label: 'Cidade', width: '150px' },
-                        { key: 'uf', label: 'UF', width: '60px' },
-                        { key: 'peso', label: 'Peso', width: '100px' },
-                        { key: 'vlr_merc', label: 'Vlr. Merc.', width: '120px' },
-                        { key: 'status', label: 'Status', width: '120px' },
-                      ]}
-                      data={carteiraItems.map((item) => ({
-                        linha_numero: item.linha_numero,
-                        filial: item.filial || '-',
-                        romane: item.romane || '-',
-                        nro_doc: item.nro_doc || '-',
-                        destinatario: item.destinatario || '-',
-                        cida: item.cida || '-',
-                        uf: item.uf || '-',
-                        peso: item.peso ? item.peso.toFixed(2) : '-',
-                        vlr_merc: item.vlr_merc
-                          ? `R$ ${item.vlr_merc.toFixed(2)}`
-                          : '-',
-                        status: (
-                          <div className="flex items-center gap-2">
-                            <Badge
-                              variant={
-                                item.status_validacao === 'valida' ? 'success' : 'error'
-                              }
-                            >
-                              {item.status_validacao}
-                            </Badge>
-                            {item.erro_validacao && (
-                              <span
-                                className="text-xs text-red-600 cursor-help"
-                                title={item.erro_validacao}
-                              >
-                                ({item.erro_validacao})
-                              </span>
-                            )}
-                          </div>
-                        ),
-                      }))}
-                      className={carteiraItems.some(
-                        (item) => item.status_validacao === 'invalida'
-                      ) ? 'has-invalid-rows' : ''}
-                    />
-                  </div>
-                )}
-              </div>
+                </div>
+              ) : (
+                <CarteiraDataGrid
+                  items={carteiraItems}
+                  itemsCount={itemsCount}
+                />
+              )
             )}
 
             {!hasStructureError && carteiraItems.length === 0 && !isLoadingItems && (

@@ -48,12 +48,22 @@ export function CarteiraFilters({
     configuracao_frota: [],
   });
   const [mesoregioes, setMesoregioes] = useState<string[]>([]);
+  const [filiais, setFiliais] = useState<string[]>([]);
+  const [ufs, setUfs] = useState<string[]>([]);
+  const [tomadores, setTomadores] = useState<string[]>([]);
+  const [destinatarios, setDestinatarios] = useState<string[]>([]);
+  const [cidades, setCidades] = useState<string[]>([]);
   const [perfisDisponiveis, setPerfisDisponiveis] = useState<Array<{ perfil: string; count: number }>>([]);
   const [quantidadesPorPerfil, setQuantidadesPorPerfil] = useState<Record<string, number>>({});
 
   useEffect(() => {
     if (uploadId) {
       buscarMesoregioes();
+      buscarFiliaisDisponiveis();
+      buscarUfsDisponiveis();
+      buscarTomadoresDisponiveis();
+      buscarDestinatariosDisponiveis();
+      buscarCidadesDisponiveis();
     }
   }, [uploadId]);
 
@@ -83,6 +93,128 @@ export function CarteiraFilters({
       setMesoregioes(uniqueMesoregioes);
     } catch (error) {
       console.error('Erro ao buscar mesoregiões:', error);
+    }
+  };
+
+  const buscarFiliaisDisponiveis = async () => {
+    if (!uploadId) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('carteira_itens')
+        .select('filial')
+        .eq('upload_id', uploadId)
+        .not('filial', 'is', null)
+        .order('filial');
+
+      if (error) throw error;
+
+      const uniqueFiliais = Array.from(
+        new Set((data || []).map(item => item.filial).filter(Boolean))
+      ) as string[];
+
+      uniqueFiliais.sort((a, b) => {
+        const numA = parseInt(a);
+        const numB = parseInt(b);
+        if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+        return a.localeCompare(b);
+      });
+
+      setFiliais(uniqueFiliais);
+    } catch (error) {
+      console.error('Erro ao buscar filiais:', error);
+    }
+  };
+
+  const buscarUfsDisponiveis = async () => {
+    if (!uploadId) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('carteira_itens')
+        .select('uf')
+        .eq('upload_id', uploadId)
+        .not('uf', 'is', null)
+        .order('uf');
+
+      if (error) throw error;
+
+      const uniqueUfs = Array.from(
+        new Set((data || []).map(item => item.uf).filter(Boolean))
+      ) as string[];
+
+      setUfs(uniqueUfs.sort());
+    } catch (error) {
+      console.error('Erro ao buscar UFs:', error);
+    }
+  };
+
+  const buscarTomadoresDisponiveis = async () => {
+    if (!uploadId) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('carteira_itens')
+        .select('tomador')
+        .eq('upload_id', uploadId)
+        .not('tomador', 'is', null)
+        .order('tomador');
+
+      if (error) throw error;
+
+      const uniqueTomadores = Array.from(
+        new Set((data || []).map(item => item.tomador).filter(Boolean))
+      ) as string[];
+
+      setTomadores(uniqueTomadores.sort());
+    } catch (error) {
+      console.error('Erro ao buscar tomadores:', error);
+    }
+  };
+
+  const buscarDestinatariosDisponiveis = async () => {
+    if (!uploadId) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('carteira_itens')
+        .select('destinatario')
+        .eq('upload_id', uploadId)
+        .not('destinatario', 'is', null)
+        .order('destinatario');
+
+      if (error) throw error;
+
+      const uniqueDestinatarios = Array.from(
+        new Set((data || []).map(item => item.destinatario).filter(Boolean))
+      ) as string[];
+
+      setDestinatarios(uniqueDestinatarios.sort());
+    } catch (error) {
+      console.error('Erro ao buscar destinatários:', error);
+    }
+  };
+
+  const buscarCidadesDisponiveis = async () => {
+    if (!uploadId) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('carteira_itens')
+        .select('cida')
+        .eq('upload_id', uploadId)
+        .not('cida', 'is', null)
+        .order('cida');
+
+      if (error) throw error;
+
+      const uniqueCidades = Array.from(
+        new Set((data || []).map(item => item.cida).filter(Boolean))
+      ) as string[];
+
+      setCidades(uniqueCidades.sort());
+    } catch (error) {
+      console.error('Erro ao buscar cidades:', error);
     }
   };
 
@@ -186,10 +318,10 @@ export function CarteiraFilters({
       </div>
 
       {showFilters && (
-        <div className="space-y-4 pt-4 border-t border-gray-200">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="space-y-3 pt-3 border-t border-gray-200">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-xs font-medium text-gray-700 mb-1">
                 Status Validação
               </label>
               <Select
@@ -206,69 +338,40 @@ export function CarteiraFilters({
 
             {isAdmin && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-xs font-medium text-gray-700 mb-1">
                   Filial
                 </label>
-                <Input
-                  type="text"
-                  placeholder="Digite a filial..."
+                <Select
                   value={filters.filial || ''}
                   onChange={(e) => handleFilterChange('filial', e.target.value)}
-                />
+                >
+                  <option value="">Todas</option>
+                  {filiais.map((filial) => (
+                    <option key={filial} value={filial}>
+                      {filial}
+                    </option>
+                  ))}
+                </Select>
               </div>
             )}
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">UF</label>
-              <Input
-                type="text"
-                placeholder="Ex: SP"
-                maxLength={2}
+              <label className="block text-xs font-medium text-gray-700 mb-1">UF</label>
+              <Select
                 value={filters.uf || ''}
-                onChange={(e) =>
-                  handleFilterChange('uf', e.target.value.toUpperCase())
-                }
-              />
+                onChange={(e) => handleFilterChange('uf', e.target.value)}
+              >
+                <option value="">Todos</option>
+                {ufs.map((uf) => (
+                  <option key={uf} value={uf}>
+                    {uf}
+                  </option>
+                ))}
+              </Select>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Destinatário
-              </label>
-              <Input
-                type="text"
-                placeholder="Digite o nome..."
-                value={filters.destinatario || ''}
-                onChange={(e) => handleFilterChange('destinatario', e.target.value)}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Cidade
-              </label>
-              <Input
-                type="text"
-                placeholder="Digite a cidade..."
-                value={filters.cida || ''}
-                onChange={(e) => handleFilterChange('cida', e.target.value)}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Tomador
-              </label>
-              <Input
-                type="text"
-                placeholder="Digite o tomador..."
-                value={filters.tomador || ''}
-                onChange={(e) => handleFilterChange('tomador', e.target.value)}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-xs font-medium text-gray-700 mb-1">
                 Mesorregião
               </label>
               <Select
@@ -285,107 +388,121 @@ export function CarteiraFilters({
             </div>
           </div>
 
-          <div className="border-t border-gray-200 pt-4">
-            <h4 className="text-sm font-semibold text-gray-700 mb-3">Período - Agendam.</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Data Início
-                </label>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">
+                Destinatário
+              </label>
+              <Select
+                value={filters.destinatario || ''}
+                onChange={(e) => handleFilterChange('destinatario', e.target.value)}
+              >
+                <option value="">Todos</option>
+                {destinatarios.map((dest) => (
+                  <option key={dest} value={dest}>
+                    {dest}
+                  </option>
+                ))}
+              </Select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">
+                Cidade
+              </label>
+              <Select
+                value={filters.cida || ''}
+                onChange={(e) => handleFilterChange('cida', e.target.value)}
+              >
+                <option value="">Todas</option>
+                {cidades.map((cidade) => (
+                  <option key={cidade} value={cidade}>
+                    {cidade}
+                  </option>
+                ))}
+              </Select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">
+                Tomador
+              </label>
+              <Select
+                value={filters.tomador || ''}
+                onChange={(e) => handleFilterChange('tomador', e.target.value)}
+              >
+                <option value="">Todos</option>
+                {tomadores.map((tomador) => (
+                  <option key={tomador} value={tomador}>
+                    {tomador}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          </div>
+
+          <div className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+            <h4 className="text-xs font-semibold text-gray-700 mb-2">Filtros de Período</h4>
+            <div className="space-y-2">
+              <div className="grid grid-cols-1 md:grid-cols-[120px_1fr_1fr] gap-2 items-center">
+                <label className="text-xs font-medium text-gray-600">Agendam.</label>
                 <Input
                   type="date"
+                  placeholder="Data Início"
                   value={filters.agendam_inicio || ''}
                   onChange={(e) => handleFilterChange('agendam_inicio', e.target.value)}
                 />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Data Fim
-                </label>
                 <Input
                   type="date"
+                  placeholder="Data Fim"
                   value={filters.agendam_fim || ''}
                   onChange={(e) => handleFilterChange('agendam_fim', e.target.value)}
                 />
               </div>
-            </div>
-          </div>
 
-          <div className="border-t border-gray-200 pt-4">
-            <h4 className="text-sm font-semibold text-gray-700 mb-3">Período - D.L.E.</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Data Início
-                </label>
+              <div className="grid grid-cols-1 md:grid-cols-[120px_1fr_1fr] gap-2 items-center">
+                <label className="text-xs font-medium text-gray-600">D.L.E.</label>
                 <Input
                   type="date"
+                  placeholder="Data Início"
                   value={filters.dle_inicio || ''}
                   onChange={(e) => handleFilterChange('dle_inicio', e.target.value)}
                 />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Data Fim
-                </label>
                 <Input
                   type="date"
+                  placeholder="Data Fim"
                   value={filters.dle_fim || ''}
                   onChange={(e) => handleFilterChange('dle_fim', e.target.value)}
                 />
               </div>
-            </div>
-          </div>
 
-          <div className="border-t border-gray-200 pt-4">
-            <h4 className="text-sm font-semibold text-gray-700 mb-3">Período - Data Des</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Data Início
-                </label>
+              <div className="grid grid-cols-1 md:grid-cols-[120px_1fr_1fr] gap-2 items-center">
+                <label className="text-xs font-medium text-gray-600">Data Des</label>
                 <Input
                   type="date"
+                  placeholder="Data Início"
                   value={filters.data_des_inicio || ''}
-                  onChange={(e) =>
-                    handleFilterChange('data_des_inicio', e.target.value)
-                  }
+                  onChange={(e) => handleFilterChange('data_des_inicio', e.target.value)}
                 />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Data Fim
-                </label>
                 <Input
                   type="date"
+                  placeholder="Data Fim"
                   value={filters.data_des_fim || ''}
                   onChange={(e) => handleFilterChange('data_des_fim', e.target.value)}
                 />
               </div>
-            </div>
-          </div>
 
-          <div className="border-t border-gray-200 pt-4">
-            <h4 className="text-sm font-semibold text-gray-700 mb-3">Período - Data NF</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Data Início
-                </label>
+              <div className="grid grid-cols-1 md:grid-cols-[120px_1fr_1fr] gap-2 items-center">
+                <label className="text-xs font-medium text-gray-600">Data NF</label>
                 <Input
                   type="date"
+                  placeholder="Data Início"
                   value={filters.data_nf_inicio || ''}
-                  onChange={(e) =>
-                    handleFilterChange('data_nf_inicio', e.target.value)
-                  }
+                  onChange={(e) => handleFilterChange('data_nf_inicio', e.target.value)}
                 />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Data Fim
-                </label>
                 <Input
                   type="date"
+                  placeholder="Data Fim"
                   value={filters.data_nf_fim || ''}
                   onChange={(e) => handleFilterChange('data_nf_fim', e.target.value)}
                 />
@@ -429,33 +546,54 @@ export function CarteiraFilters({
           </div>
 
           {filters.tipo_roteirizacao === 'frota' && perfisDisponiveis.length > 0 && (
-            <div className="border-t border-gray-200 pt-4">
+            <div className="border-2 border-blue-200 rounded-lg p-4 bg-blue-50">
               <div className="flex items-center justify-between mb-3">
-                <h4 className="text-sm font-semibold text-gray-700">Configuração de Frota</h4>
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-900">Configuração de Frota</h4>
+                  <p className="text-xs text-gray-600 mt-1">
+                    Defina a quantidade de manifestos desejada por perfil de veículo
+                  </p>
+                </div>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={handleLimparConfiguracao}
                 >
-                  Limpar Configuração
+                  Limpar
                 </Button>
               </div>
-              <div className="space-y-3">
+
+              {Object.values(quantidadesPorPerfil).reduce((sum, qtd) => sum + qtd, 0) > 0 && (
+                <div className="mb-3 p-2 bg-white rounded border border-blue-300">
+                  <div className="text-sm font-semibold text-blue-900">
+                    Total de Manifestos Solicitados:{' '}
+                    <span className="text-lg">
+                      {Object.values(quantidadesPorPerfil).reduce((sum, qtd) => sum + qtd, 0)}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <div className="grid grid-cols-[1fr_120px] gap-2 text-xs font-semibold text-gray-700 px-3">
+                  <div>Perfil</div>
+                  <div className="text-center">Quantidade</div>
+                </div>
                 {perfisDisponiveis.map(({ perfil, count }) => (
-                  <div key={perfil} className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
-                    <div className="flex-1">
+                  <div key={perfil} className="grid grid-cols-[1fr_120px] gap-2 items-center p-3 bg-white rounded-lg border border-gray-200">
+                    <div>
                       <div className="font-medium text-gray-900">{perfil}</div>
-                      <div className="text-sm text-gray-600">
+                      <div className="text-xs text-gray-600">
                         {count} {count === 1 ? 'veículo disponível' : 'veículos disponíveis'}
                       </div>
                     </div>
-                    <div className="w-32">
+                    <div>
                       <Input
                         type="number"
                         min="0"
                         max="999"
                         step="1"
-                        placeholder="Qtd"
+                        placeholder="0"
                         value={quantidadesPorPerfil[perfil] || ''}
                         onChange={(e) =>
                           handleQuantidadePerfilChange(perfil, parseInt(e.target.value) || 0)
@@ -465,6 +603,22 @@ export function CarteiraFilters({
                   </div>
                 ))}
               </div>
+
+              {Object.values(quantidadesPorPerfil).reduce((sum, qtd) => sum + qtd, 0) === 0 && (
+                <div className="mt-3 p-2 bg-yellow-50 border border-yellow-200 rounded">
+                  <p className="text-xs text-yellow-800">
+                    ⚠️ Configure pelo menos um perfil com quantidade maior que zero
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {filters.tipo_roteirizacao === 'frota' && perfisDisponiveis.length === 0 && (
+            <div className="border-2 border-yellow-200 rounded-lg p-4 bg-yellow-50">
+              <p className="text-sm text-yellow-800">
+                ⚠️ Nenhum veículo cadastrado para sua filial. Cadastre veículos antes de usar o modo Frota.
+              </p>
             </div>
           )}
 
