@@ -26,10 +26,32 @@ export interface CarteiraItem {
 
 import type { TipoRoteirizacao, ConfiguracaoFrota, PayloadMotorParametros } from '../types';
 
+export interface VeiculoPayload {
+  id: string;
+  placa?: string | null;
+  perfil: string;
+  qtd_eixos: number;
+  capacidade_peso_kg: number;
+  capacidade_vol_m3: number;
+  max_entregas: number;
+  max_km_distancia: number;
+  ocupacao_minima_perc: number;
+  filial_id?: string | null;
+  tipo_frota?: string | null;
+  ativo: boolean;
+}
+
+export interface RegionalidadePayload {
+  cidade: string;
+  uf: string;
+  mesorregiao: string;
+  microrregiao: string;
+}
+
 export interface PayloadMotor {
   carteira: Array<Record<string, any>>;
-  veiculos: Veiculo[];
-  regionalidades: Regionalidade[];
+  veiculos: VeiculoPayload[];
+  regionalidades: RegionalidadePayload[];
   parametros: PayloadMotorParametros;
 }
 
@@ -238,7 +260,7 @@ export async function montarPayloadMotor(
   tipoRoteirizacao: TipoRoteirizacao = 'carteira',
   configuracaoFrota: ConfiguracaoFrota[] = []
 ): Promise<PayloadMotor> {
-  const [carteira, veiculos, regionalidades] = await Promise.all([
+  const [carteira, veiculosCompletos, regionalidadesCompletas] = await Promise.all([
     buscarCarteiraValida(uploadId, filtros),
     buscarVeiculosAtivos(filialId),
     buscarRegionalidades(),
@@ -246,6 +268,34 @@ export async function montarPayloadMotor(
 
   const dataBaseRoteirizacao = new Date().toISOString();
   const configFrotaFinal = tipoRoteirizacao === 'carteira' ? [] : configuracaoFrota;
+
+  let veiculosFiltrados = veiculosCompletos;
+  if (tipoRoteirizacao === 'frota' && configuracaoFrota.length > 0) {
+    const perfisElegiveis = new Set(configuracaoFrota.map(cfg => cfg.perfil));
+    veiculosFiltrados = veiculosCompletos.filter(v => perfisElegiveis.has(v.perfil));
+  }
+
+  const veiculos = veiculosFiltrados.map(v => ({
+    id: v.id,
+    placa: v.placa,
+    perfil: v.perfil,
+    qtd_eixos: v.qtd_eixos,
+    capacidade_peso_kg: v.capacidade_peso_kg,
+    capacidade_vol_m3: v.capacidade_vol_m3,
+    max_entregas: v.max_entregas,
+    max_km_distancia: v.max_km_distancia,
+    ocupacao_minima_perc: v.ocupacao_minima_perc,
+    filial_id: v.filial_id,
+    tipo_frota: v.tipo_frota,
+    ativo: v.ativo,
+  }));
+
+  const regionalidades = regionalidadesCompletas.map(r => ({
+    cidade: r.cidade,
+    uf: r.uf,
+    mesorregiao: r.mesorregiao,
+    microrregiao: r.microrregiao,
+  }));
 
   return {
     carteira,

@@ -51,7 +51,6 @@ export interface Veiculo {
   ocupacao_minima_perc: number;
   filial_id?: string | null;
   filial?: Filial;
-  dedicado?: boolean | null;
   tipo_frota?: TipoFrota | null;
   ativo: boolean;
   created_at: string;
