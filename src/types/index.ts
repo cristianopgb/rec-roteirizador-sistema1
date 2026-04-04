@@ -134,6 +134,22 @@ export interface ConfiguracaoFrota {
   quantidade: number;
 }
 
+export interface PayloadMotorParametros {
+  usuario_id: string;
+  usuario_nome: string;
+  filial_id: string;
+  filial_nome: string;
+  upload_id: string;
+  rodada_id: string;
+  data_execucao: string;
+  data_base_roteirizacao: string;
+  origem_sistema: 'sistema_1';
+  modelo_roteirizacao: string;
+  tipo_roteirizacao: TipoRoteirizacao;
+  configuracao_frota: ConfiguracaoFrota[];
+  filtros_aplicados: Record<string, any>;
+}
+
 export interface CarteiraItem {
   id: string;
   upload_id: string;

@@ -24,25 +24,13 @@ export interface CarteiraItem {
   erro_validacao: string | null;
 }
 
-import type { TipoRoteirizacao, ConfiguracaoFrota } from '../types';
+import type { TipoRoteirizacao, ConfiguracaoFrota, PayloadMotorParametros } from '../types';
 
 export interface PayloadMotor {
   carteira: Array<Record<string, any>>;
   veiculos: Veiculo[];
   regionalidades: Regionalidade[];
-  parametros: {
-    usuario_id: string;
-    usuario_nome: string;
-    filial_id: string;
-    filial_nome: string;
-    upload_id: string;
-    data_execucao: string;
-    modelo_roteirizacao: string;
-    filtros_aplicados: Record<string, any>;
-    origem_sistema: string;
-    tipo_roteirizacao: TipoRoteirizacao;
-    configuracao_frota: ConfiguracaoFrota[];
-  };
+  parametros: PayloadMotorParametros;
 }
 
 export interface RespostaMotor {
@@ -216,8 +204,8 @@ export async function buscarVeiculosAtivos(filialId: string): Promise<Veiculo[]>
   const { data, error } = await supabase
     .from('veiculos')
     .select('*')
-    .is('filial_id', null)
-    .eq('ativo', true);
+    .eq('ativo', true)
+    .or(`filial_id.is.null,filial_id.eq.${filialId}`);
 
   if (error) {
     throw new Error(`Erro ao buscar veículos: ${error.message}`);
@@ -239,6 +227,7 @@ export async function buscarRegionalidades(): Promise<Regionalidade[]> {
 }
 
 export async function montarPayloadMotor(
+  rodadaId: string,
   uploadId: string,
   filialId: string,
   usuarioId: string,
@@ -255,6 +244,9 @@ export async function montarPayloadMotor(
     buscarRegionalidades(),
   ]);
 
+  const dataBaseRoteirizacao = new Date().toISOString();
+  const configFrotaFinal = tipoRoteirizacao === 'carteira' ? [] : configuracaoFrota;
+
   return {
     carteira,
     veiculos,
@@ -265,12 +257,14 @@ export async function montarPayloadMotor(
       filial_id: filialId,
       filial_nome: filialNome,
       upload_id: uploadId,
-      data_execucao: new Date().toISOString(),
+      rodada_id: rodadaId,
+      data_execucao: dataBaseRoteirizacao,
+      data_base_roteirizacao: dataBaseRoteirizacao,
+      origem_sistema: 'sistema_1',
       modelo_roteirizacao: modeloRoteirizacao,
-      filtros_aplicados: filtros,
-      origem_sistema: 'Sistema 1',
       tipo_roteirizacao: tipoRoteirizacao,
-      configuracao_frota: configuracaoFrota,
+      configuracao_frota: configFrotaFinal,
+      filtros_aplicados: filtros,
     },
   };
 }
@@ -442,6 +436,61 @@ export async function buscarRodadaPorId(rodadaId: string): Promise<RodadaRoteiri
   }
 
   return data;
+}
+
+export interface ValidacaoPayload {
+  valido: boolean;
+  erros: string[];
+}
+
+export function validarPayloadAntesDenvio(payload: PayloadMotor): ValidacaoPayload {
+  const erros: string[] = [];
+
+  if (!payload.parametros.rodada_id || typeof payload.parametros.rodada_id !== 'string') {
+    erros.push('rodada_id é obrigatório e deve ser uma string UUID');
+  }
+
+  if (!payload.parametros.data_execucao || !isValidISODate(payload.parametros.data_execucao)) {
+    erros.push('data_execucao é obrigatório e deve estar no formato ISO 8601');
+  }
+
+  if (!payload.parametros.data_base_roteirizacao || !isValidISODate(payload.parametros.data_base_roteirizacao)) {
+    erros.push('data_base_roteirizacao é obrigatório e deve estar no formato ISO 8601');
+  }
+
+  if (payload.parametros.origem_sistema !== 'sistema_1') {
+    erros.push('origem_sistema deve ser literal "sistema_1"');
+  }
+
+  if (!payload.parametros.tipo_roteirizacao || !['carteira', 'frota'].includes(payload.parametros.tipo_roteirizacao)) {
+    erros.push('tipo_roteirizacao deve ser "carteira" ou "frota"');
+  }
+
+  if (!payload.parametros.usuario_id || !payload.parametros.filial_id || !payload.parametros.upload_id) {
+    erros.push('usuario_id, filial_id e upload_id são obrigatórios');
+  }
+
+  if (payload.parametros.tipo_roteirizacao === 'frota' && payload.parametros.configuracao_frota.length === 0) {
+    erros.push('tipo_roteirizacao "frota" requer configuracao_frota com pelo menos 1 item');
+  }
+
+  if (payload.parametros.tipo_roteirizacao === 'carteira' && payload.parametros.configuracao_frota.length > 0) {
+    erros.push('tipo_roteirizacao "carteira" deve ter configuracao_frota vazio');
+  }
+
+  return {
+    valido: erros.length === 0,
+    erros,
+  };
+}
+
+function isValidISODate(dateString: string): boolean {
+  const isoDateRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?Z?$/;
+  if (!isoDateRegex.test(dateString)) {
+    return false;
+  }
+  const date = new Date(dateString);
+  return !isNaN(date.getTime());
 }
 
 export async function registrarAuditoriaRoteirizacao(

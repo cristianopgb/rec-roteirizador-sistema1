@@ -26,6 +26,7 @@ import {
   salvarRespostaRodada,
   registrarErroRodada,
   registrarAuditoriaRoteirizacao,
+  validarPayloadAntesDenvio,
 } from '../services/roteirizacao.service';
 
 interface UploadStats {
@@ -187,11 +188,6 @@ export function Roteirizacao() {
       return;
     }
 
-    if (currentUpload.total_validas === 0) {
-      setError('Não há linhas válidas para roteirizar');
-      return;
-    }
-
     const tipoRoteirizacao = activeFilters.tipo_roteirizacao || 'carteira';
     const configuracaoFrota = activeFilters.configuracao_frota || [];
 
@@ -224,6 +220,7 @@ export function Roteirizacao() {
       });
 
       const payload = await montarPayloadMotor(
+        rodadaId,
         currentUpload.id,
         profile.filial_id,
         profile.id,
@@ -234,6 +231,19 @@ export function Roteirizacao() {
         tipoRoteirizacao,
         configuracaoFrota
       );
+
+      const validacao = validarPayloadAntesDenvio(payload);
+      if (!validacao.valido) {
+        const erroValidacao = 'Payload inválido: ' + validacao.erros.join('; ');
+        await registrarErroRodada(rodadaId, erroValidacao);
+        await registrarAuditoriaRoteirizacao('roteirizacao_erro', {
+          usuario_id: profile.id,
+          upload_id: currentUpload.id,
+          rodada_id: rodadaId,
+          erro: erroValidacao,
+        });
+        throw new Error(validacao.erros.join(', '));
+      }
 
       await salvarPayloadEnviado(rodadaId, payload);
       setStatusRodada('enviando');
@@ -289,7 +299,7 @@ export function Roteirizacao() {
 
   const hasStructureError = currentUpload?.status === 'erro' && currentUpload?.erro_estrutura;
   const allInvalid = currentUpload && currentUpload.total_invalidas === currentUpload.total_linhas && currentUpload.total_linhas > 0;
-  const canGenerateRouting = currentUpload && currentUpload.total_validas > 0 && !hasStructureError;
+  const canGenerateRouting = currentUpload && !hasStructureError;
 
   const validationRate = currentUpload && currentUpload.total_linhas > 0
     ? Math.round((currentUpload.total_validas / currentUpload.total_linhas) * 100)
