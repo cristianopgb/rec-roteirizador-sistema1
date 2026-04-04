@@ -5,12 +5,16 @@ export interface CreateFilialDTO {
   nome: string;
   cidade: string;
   uf: string;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 export interface UpdateFilialDTO {
   nome?: string;
   cidade?: string;
   uf?: string;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 export async function listFiliais(): Promise<Filial[]> {
@@ -48,12 +52,29 @@ export async function createFilial(dto: CreateFilialDTO): Promise<Filial> {
     throw new Error('UF deve conter exatamente 2 letras');
   }
 
+  // Validate coordinates if provided
+  if (dto.latitude !== undefined && dto.latitude !== null) {
+    const lat = Number(dto.latitude);
+    if (isNaN(lat) || lat < -90 || lat > 90) {
+      throw new Error('Latitude deve estar entre -90 e +90');
+    }
+  }
+
+  if (dto.longitude !== undefined && dto.longitude !== null) {
+    const lon = Number(dto.longitude);
+    if (isNaN(lon) || lon < -180 || lon > 180) {
+      throw new Error('Longitude deve estar entre -180 e +180');
+    }
+  }
+
   const { data, error } = await supabase
     .from('filiais')
     .insert({
       nome: dto.nome.trim(),
       cidade: dto.cidade.trim(),
       uf,
+      latitude: dto.latitude,
+      longitude: dto.longitude,
       ativo: true,
     })
     .select()
@@ -85,6 +106,32 @@ export async function updateFilial(id: string, dto: UpdateFilialDTO): Promise<Fi
       throw new Error('UF deve conter exatamente 2 letras');
     }
     updateData.uf = uf;
+  }
+
+  // Validate and update latitude if provided
+  if (dto.latitude !== undefined) {
+    if (dto.latitude !== null) {
+      const lat = Number(dto.latitude);
+      if (isNaN(lat) || lat < -90 || lat > 90) {
+        throw new Error('Latitude deve estar entre -90 e +90');
+      }
+      updateData.latitude = lat;
+    } else {
+      updateData.latitude = null;
+    }
+  }
+
+  // Validate and update longitude if provided
+  if (dto.longitude !== undefined) {
+    if (dto.longitude !== null) {
+      const lon = Number(dto.longitude);
+      if (isNaN(lon) || lon < -180 || lon > 180) {
+        throw new Error('Longitude deve estar entre -180 e +180');
+      }
+      updateData.longitude = lon;
+    } else {
+      updateData.longitude = null;
+    }
   }
 
   const { data, error } = await supabase

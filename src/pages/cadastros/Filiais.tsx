@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Building2, Plus, Search, Pencil, Trash2 } from 'lucide-react';
+import { Building2, Plus, Search, Pencil, Trash2, MapPin } from 'lucide-react';
 import { Layout } from '../../components/layout/Layout';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
@@ -34,6 +34,8 @@ export default function Filiais() {
     nome: '',
     cidade: '',
     uf: '',
+    latitude: null,
+    longitude: null,
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -78,7 +80,7 @@ export default function Filiais() {
   }
 
   function handleOpenAddModal() {
-    setFormData({ nome: '', cidade: '', uf: '' });
+    setFormData({ nome: '', cidade: '', uf: '', latitude: null, longitude: null });
     setFormErrors({});
     setIsAddModalOpen(true);
   }
@@ -89,6 +91,8 @@ export default function Filiais() {
       nome: filial.nome,
       cidade: filial.cidade,
       uf: filial.uf,
+      latitude: filial.latitude ?? null,
+      longitude: filial.longitude ?? null,
     });
     setFormErrors({});
     setIsEditModalOpen(true);
@@ -98,7 +102,7 @@ export default function Filiais() {
     setIsAddModalOpen(false);
     setIsEditModalOpen(false);
     setSelectedFilial(null);
-    setFormData({ nome: '', cidade: '', uf: '' });
+    setFormData({ nome: '', cidade: '', uf: '', latitude: null, longitude: null });
     setFormErrors({});
   }
 
@@ -117,6 +121,26 @@ export default function Filiais() {
       errors.uf = 'UF é obrigatória';
     } else if (!/^[A-Za-z]{2}$/.test(formData.uf.trim())) {
       errors.uf = 'UF deve conter exatamente 2 letras';
+    }
+
+    // Validate latitude if provided
+    if (formData.latitude !== null && formData.latitude !== undefined) {
+      const lat = Number(formData.latitude);
+      if (isNaN(lat)) {
+        errors.latitude = 'Latitude deve ser um número válido';
+      } else if (lat < -90 || lat > 90) {
+        errors.latitude = 'Latitude deve estar entre -90 e +90';
+      }
+    }
+
+    // Validate longitude if provided
+    if (formData.longitude !== null && formData.longitude !== undefined) {
+      const lon = Number(formData.longitude);
+      if (isNaN(lon)) {
+        errors.longitude = 'Longitude deve ser um número válido';
+      } else if (lon < -180 || lon > 180) {
+        errors.longitude = 'Longitude deve estar entre -180 e +180';
+      }
     }
 
     setFormErrors(errors);
@@ -187,6 +211,22 @@ export default function Filiais() {
     { key: 'nome', label: 'Nome' },
     { key: 'cidade', label: 'Cidade' },
     { key: 'uf', label: 'UF' },
+    {
+      key: 'coordenadas',
+      label: 'Coordenadas',
+      render: (filial: Filial) => (
+        <div className="flex items-center gap-2">
+          {filial.latitude && filial.longitude ? (
+            <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-50 text-green-700 text-xs font-medium rounded-md">
+              <MapPin size={14} />
+              Definidas
+            </span>
+          ) : (
+            <span className="text-gray-400 text-xs">Não definidas</span>
+          )}
+        </div>
+      ),
+    },
     {
       key: 'actions',
       label: 'Ações',
@@ -313,6 +353,57 @@ export default function Filiais() {
             />
           </div>
 
+          <div className="border-t border-gray-200 pt-4">
+            <h3 className="text-sm font-medium text-gray-900 mb-3">
+              Coordenadas Geográficas (opcional)
+            </h3>
+            <p className="text-xs text-gray-500 mb-4">
+              Coordenadas da sede/CD da filial, usadas para cálculo de distância de origem
+            </p>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Latitude
+                </label>
+                <Input
+                  type="number"
+                  step="any"
+                  value={formData.latitude ?? ''}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      latitude: e.target.value === '' ? null : parseFloat(e.target.value)
+                    })
+                  }
+                  placeholder="-23.5505"
+                  error={formErrors.latitude}
+                />
+                <p className="text-xs text-gray-500 mt-1">Entre -90 e +90</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Longitude
+                </label>
+                <Input
+                  type="number"
+                  step="any"
+                  value={formData.longitude ?? ''}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      longitude: e.target.value === '' ? null : parseFloat(e.target.value)
+                    })
+                  }
+                  placeholder="-46.6333"
+                  error={formErrors.longitude}
+                />
+                <p className="text-xs text-gray-500 mt-1">Entre -180 e +180</p>
+              </div>
+            </div>
+          </div>
+
           <div className="flex gap-3 pt-4">
             <Button
               variant="secondary"
@@ -380,6 +471,57 @@ export default function Filiais() {
               maxLength={2}
               error={formErrors.uf}
             />
+          </div>
+
+          <div className="border-t border-gray-200 pt-4">
+            <h3 className="text-sm font-medium text-gray-900 mb-3">
+              Coordenadas Geográficas (opcional)
+            </h3>
+            <p className="text-xs text-gray-500 mb-4">
+              Coordenadas da sede/CD da filial, usadas para cálculo de distância de origem
+            </p>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Latitude
+                </label>
+                <Input
+                  type="number"
+                  step="any"
+                  value={formData.latitude ?? ''}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      latitude: e.target.value === '' ? null : parseFloat(e.target.value)
+                    })
+                  }
+                  placeholder="-23.5505"
+                  error={formErrors.latitude}
+                />
+                <p className="text-xs text-gray-500 mt-1">Entre -90 e +90</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Longitude
+                </label>
+                <Input
+                  type="number"
+                  step="any"
+                  value={formData.longitude ?? ''}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      longitude: e.target.value === '' ? null : parseFloat(e.target.value)
+                    })
+                  }
+                  placeholder="-46.6333"
+                  error={formErrors.longitude}
+                />
+                <p className="text-xs text-gray-500 mt-1">Entre -180 e +180</p>
+              </div>
+            </div>
           </div>
 
           <div className="flex gap-3 pt-4">
