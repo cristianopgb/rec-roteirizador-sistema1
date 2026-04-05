@@ -48,7 +48,23 @@ export interface RegionalidadePayload {
   microrregiao: string;
 }
 
+export interface FilialPayload {
+  id: string;
+  nome: string;
+  cidade: string;
+  uf: string;
+  latitude: number;
+  longitude: number;
+}
+
 export interface PayloadMotor {
+  rodada_id: string;
+  upload_id: string;
+  usuario_id: string;
+  filial_id: string;
+  data_base_roteirizacao: string;
+  tipo_roteirizacao: string;
+  filial: FilialPayload;
   carteira: Array<Record<string, any>>;
   veiculos: VeiculoPayload[];
   regionalidades: RegionalidadePayload[];
@@ -248,6 +264,39 @@ export async function buscarRegionalidades(): Promise<Regionalidade[]> {
   return data || [];
 }
 
+export async function buscarFilialCompleta(filialId: string): Promise<FilialPayload> {
+  const { data, error } = await supabase
+    .from('filiais')
+    .select('id, nome, cidade, uf, latitude, longitude')
+    .eq('id', filialId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Erro ao buscar filial: ${error.message}`);
+  }
+
+  if (!data) {
+    throw new Error('Filial não encontrada');
+  }
+
+  if (data.latitude === null || data.latitude === undefined) {
+    throw new Error('Não foi possível roteirizar porque a filial selecionada não possui latitude cadastrada.');
+  }
+
+  if (data.longitude === null || data.longitude === undefined) {
+    throw new Error('Não foi possível roteirizar porque a filial selecionada não possui longitude cadastrada.');
+  }
+
+  return {
+    id: data.id,
+    nome: data.nome,
+    cidade: data.cidade,
+    uf: data.uf,
+    latitude: data.latitude,
+    longitude: data.longitude,
+  };
+}
+
 export async function montarPayloadMotor(
   rodadaId: string,
   uploadId: string,
@@ -260,10 +309,11 @@ export async function montarPayloadMotor(
   tipoRoteirizacao: TipoRoteirizacao = 'carteira',
   configuracaoFrota: ConfiguracaoFrota[] = []
 ): Promise<PayloadMotor> {
-  const [carteira, veiculosCompletos, regionalidadesCompletas] = await Promise.all([
+  const [carteira, veiculosCompletos, regionalidadesCompletas, filialCompleta] = await Promise.all([
     buscarCarteiraValida(uploadId, filtros),
     buscarVeiculosAtivos(filialId),
     buscarRegionalidades(),
+    buscarFilialCompleta(filialId),
   ]);
 
   const dataBaseRoteirizacao = new Date().toISOString();
@@ -298,6 +348,13 @@ export async function montarPayloadMotor(
   }));
 
   return {
+    rodada_id: rodadaId,
+    upload_id: uploadId,
+    usuario_id: usuarioId,
+    filial_id: filialId,
+    data_base_roteirizacao: dataBaseRoteirizacao,
+    tipo_roteirizacao: tipoRoteirizacao,
+    filial: filialCompleta,
     carteira,
     veiculos,
     regionalidades,
@@ -496,36 +553,83 @@ export interface ValidacaoPayload {
 export function validarPayloadAntesDenvio(payload: PayloadMotor): ValidacaoPayload {
   const erros: string[] = [];
 
+  if (!payload.rodada_id || typeof payload.rodada_id !== 'string') {
+    erros.push('rodada_id (topo) é obrigatório e deve ser uma string UUID');
+  }
+
+  if (!payload.upload_id || typeof payload.upload_id !== 'string') {
+    erros.push('upload_id (topo) é obrigatório e deve ser uma string UUID');
+  }
+
+  if (!payload.usuario_id || typeof payload.usuario_id !== 'string') {
+    erros.push('usuario_id (topo) é obrigatório e deve ser uma string UUID');
+  }
+
+  if (!payload.filial_id || typeof payload.filial_id !== 'string') {
+    erros.push('filial_id (topo) é obrigatório e deve ser uma string UUID');
+  }
+
+  if (!payload.data_base_roteirizacao || !isValidISODate(payload.data_base_roteirizacao)) {
+    erros.push('data_base_roteirizacao (topo) é obrigatório e deve estar no formato ISO 8601');
+  }
+
+  if (!payload.tipo_roteirizacao || !['carteira', 'frota'].includes(payload.tipo_roteirizacao)) {
+    erros.push('tipo_roteirizacao (topo) deve ser "carteira" ou "frota"');
+  }
+
+  if (!payload.filial) {
+    erros.push('bloco filial é obrigatório');
+  } else {
+    if (!payload.filial.id) {
+      erros.push('filial.id é obrigatório');
+    }
+    if (!payload.filial.nome) {
+      erros.push('filial.nome é obrigatório');
+    }
+    if (!payload.filial.cidade) {
+      erros.push('filial.cidade é obrigatório');
+    }
+    if (!payload.filial.uf) {
+      erros.push('filial.uf é obrigatório');
+    }
+    if (payload.filial.latitude === null || payload.filial.latitude === undefined) {
+      erros.push('filial.latitude é obrigatório e deve ser um número válido');
+    }
+    if (payload.filial.longitude === null || payload.filial.longitude === undefined) {
+      erros.push('filial.longitude é obrigatório e deve ser um número válido');
+    }
+  }
+
   if (!payload.parametros.rodada_id || typeof payload.parametros.rodada_id !== 'string') {
-    erros.push('rodada_id é obrigatório e deve ser uma string UUID');
+    erros.push('parametros.rodada_id é obrigatório e deve ser uma string UUID');
   }
 
   if (!payload.parametros.data_execucao || !isValidISODate(payload.parametros.data_execucao)) {
-    erros.push('data_execucao é obrigatório e deve estar no formato ISO 8601');
+    erros.push('parametros.data_execucao é obrigatório e deve estar no formato ISO 8601');
   }
 
   if (!payload.parametros.data_base_roteirizacao || !isValidISODate(payload.parametros.data_base_roteirizacao)) {
-    erros.push('data_base_roteirizacao é obrigatório e deve estar no formato ISO 8601');
+    erros.push('parametros.data_base_roteirizacao é obrigatório e deve estar no formato ISO 8601');
   }
 
   if (payload.parametros.origem_sistema !== 'sistema_1') {
-    erros.push('origem_sistema deve ser literal "sistema_1"');
+    erros.push('parametros.origem_sistema deve ser literal "sistema_1"');
   }
 
   if (!payload.parametros.tipo_roteirizacao || !['carteira', 'frota'].includes(payload.parametros.tipo_roteirizacao)) {
-    erros.push('tipo_roteirizacao deve ser "carteira" ou "frota"');
+    erros.push('parametros.tipo_roteirizacao deve ser "carteira" ou "frota"');
   }
 
   if (!payload.parametros.usuario_id || !payload.parametros.filial_id || !payload.parametros.upload_id) {
-    erros.push('usuario_id, filial_id e upload_id são obrigatórios');
+    erros.push('parametros.usuario_id, filial_id e upload_id são obrigatórios');
   }
 
   if (payload.parametros.tipo_roteirizacao === 'frota' && payload.parametros.configuracao_frota.length === 0) {
-    erros.push('tipo_roteirizacao "frota" requer configuracao_frota com pelo menos 1 item');
+    erros.push('parametros.tipo_roteirizacao "frota" requer configuracao_frota com pelo menos 1 item');
   }
 
   if (payload.parametros.tipo_roteirizacao === 'carteira' && payload.parametros.configuracao_frota.length > 0) {
-    erros.push('tipo_roteirizacao "carteira" deve ter configuracao_frota vazio');
+    erros.push('parametros.tipo_roteirizacao "carteira" deve ter configuracao_frota vazio');
   }
 
   return {
