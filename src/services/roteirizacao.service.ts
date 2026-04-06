@@ -232,6 +232,9 @@ export async function buscarCarteiraValida(
       'Status': item.status ?? '',
       'Lat.': item.lat,
       'Lon.': item.lon,
+      'Veiculo Exclusivo': item.veiculo_exclusivo ?? null,
+      'Peso Calculado': item.peso_calculado ?? null,
+      'Prioridade': item.prioridade ?? null,
     };
 
     return mappedItem;

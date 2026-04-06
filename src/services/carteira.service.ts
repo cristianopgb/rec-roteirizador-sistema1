@@ -130,12 +130,12 @@ function renomearFilialOrigem(headers: string[]): string[] {
  * CRITICAL: After renaming, expects "Filial" at position 0 and "Filial (origem)" at position 2.
  */
 function validarOrdemExataBruta(headers: string[]): StructureValidationResult {
-  // Must have exactly 38 columns after removing empty ones
-  if (headers.length !== 38) {
+  // Must have exactly 41 columns after removing empty ones
+  if (headers.length !== 41) {
     const columnsInfo = `Colunas encontradas: [${headers.join(', ')}]`;
     return {
       valid: false,
-      errorMessage: `Arquivo fora do layout oficial da carteira REC após limpeza de colunas inválidas. Esperado: 38 colunas, encontrado: ${headers.length}. ${columnsInfo}`,
+      errorMessage: `Arquivo fora do layout oficial da carteira REC após limpeza de colunas inválidas. Esperado: 41 colunas, encontrado: ${headers.length}. ${columnsInfo}`,
     };
   }
 
@@ -233,6 +233,11 @@ interface CarteiraItem {
   tipo_c?: string;
   ultima?: string;
   status?: string;
+
+  // NEW COLUMNS (Sprint 4)
+  veiculo_exclusivo?: string;
+  peso_calculado?: number;
+  prioridade?: number;
 }
 
 
@@ -319,7 +324,7 @@ function applyColumnTransformations(rowObject: any): any {
 }
 
 /**
- * Extract ALL 38 columns from row data for database storage.
+ * Extract ALL 41 columns from row data for database storage.
  * Maps Excel column names to database column names.
  *
  * CRITICAL: Uses renamed column names:
@@ -337,7 +342,7 @@ function extractTypedColumns(row: any) {
  * Flow:
  * 1. Read raw Excel file starting from row 5 (L5)
  * 2. Remove empty columns (__EMPTY*)
- * 3. Validate exact sequence of 38 non-empty columns
+ * 3. Validate exact sequence of 41 non-empty columns
  * 4. Process and persist data (NO renaming - columns stay as exported)
  */
 export async function processCarteiraUpload(
@@ -1075,6 +1080,9 @@ export async function montarPayloadRoteirizacao(
       'Status': item.status ?? '',
       'Lat.': item.lat ?? 0,
       'Lon.': item.lon ?? 0,
+      'Veiculo Exclusivo': item.veiculo_exclusivo ?? null,
+      'Peso Calculado': item.peso_calculado ?? null,
+      'Prioridade': item.prioridade ?? null,
     })) || [];
 
     const payload = {

@@ -11,6 +11,7 @@ import {
   parseDateTimeBR,
   parseNumberBR,
   parseDecimal,
+  parseTextSafe,
 } from '../utils/column-transformers';
 
 /**
@@ -135,4 +136,9 @@ export const COLUMN_TRANSFORMATION_MAP: Record<
     field: 'status',
     transform: (v: any) => (v === null || v === undefined || String(v).trim() === '' ? undefined : String(v))
   },
+
+  // ==================== NEW COLUMNS (Sprint 4) ====================
+  'Veiculo Exclusivo': { field: 'veiculo_exclusivo', transform: parseTextSafe },
+  'Peso Calculado': { field: 'peso_calculado', transform: parseNumberBR },
+  'Prioridade': { field: 'prioridade', transform: parseIntegerSafe },
 };

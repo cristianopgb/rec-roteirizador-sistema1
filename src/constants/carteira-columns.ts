@@ -8,7 +8,7 @@
  * - Third "Filial" = filial de origem (de onde a carga chegou)
  * - RENAMED INTERNALLY: The 3rd "Filial" is renamed to "Filial (origem)" to avoid ambiguity
  * - Validation uses the SEQUENCE of non-empty columns (not sheet indices)
- * - Total: 38 columns in EXACT order
+ * - Total: 41 columns in EXACT order
  */
 export const COLUNAS_BRUTAS_REC = [
   'Filial',          // 1 - Filial de roteirização
@@ -49,6 +49,9 @@ export const COLUNAS_BRUTAS_REC = [
   'Status',          // 36
   'Lat.',            // 37
   'Lon.',            // 38
+  'Veiculo Exclusivo', // 39 - New column
+  'Peso Calculado',    // 40 - New column
+  'Prioridade',        // 41 - New column
 ] as const;
 
 /**
@@ -62,7 +65,7 @@ export const COLUNAS_BRUTAS_REC = [
  * - No normalization allowed
  * - The 3rd column "Filial" is renamed to "Filial (origem)" to eliminate ambiguity
  *
- * Total: 38 required columns
+ * Total: 41 required columns
  */
 export const COLUNAS_OBRIGATORIAS_EXCEL = [
   'Filial',
@@ -103,6 +106,9 @@ export const COLUNAS_OBRIGATORIAS_EXCEL = [
   'Status',
   'Lat.',
   'Lon.',
+  'Veiculo Exclusivo',
+  'Peso Calculado',
+  'Prioridade',
 ] as const;
 
 /**
@@ -168,6 +174,9 @@ export type CarteiraExcelRow = Partial<Record<string, any>> & {
   'Status': string;
   'Lat.': string | number;
   'Lon.': string | number;
+  'Veiculo Exclusivo'?: string;
+  'Peso Calculado'?: string | number;
+  'Prioridade'?: string | number;
 };
 
 /**

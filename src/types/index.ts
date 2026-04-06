@@ -194,6 +194,9 @@ export interface CarteiraItem {
   status?: string | null;
   lat?: number | null;
   lon?: number | null;
+  veiculo_exclusivo?: string | null;
+  peso_calculado?: number | null;
+  prioridade?: number | null;
 
   dados_originais?: Record<string, any>;
   created_at?: string;
