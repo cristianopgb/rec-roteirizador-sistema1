@@ -49,6 +49,9 @@ export function CarteiraDataGrid({ items, itemsCount }: CarteiraDataGridProps) {
       { key: 'status', label: 'Status', width: '100px' },
       { key: 'lat', label: 'Lat.', width: '100px' },
       { key: 'lon', label: 'Lon.', width: '100px' },
+      { key: 'veiculo_exclusivo', label: 'Veículo Exclusivo', width: '150px' },
+      { key: 'peso_calculado', label: 'Peso Calculado', width: '130px' },
+      { key: 'prioridade', label: 'Prioridade', width: '100px' },
       { key: 'status_validacao', label: 'Validação', width: '140px' },
     ];
     return cols;
@@ -160,6 +163,12 @@ export function CarteiraDataGrid({ items, itemsCount }: CarteiraDataGridProps) {
         return item.lat ?? '-';
       case 'lon':
         return item.lon ?? '-';
+      case 'veiculo_exclusivo':
+        return item.veiculo_exclusivo || '-';
+      case 'peso_calculado':
+        return item.peso_calculado ? item.peso_calculado.toFixed(2) : '-';
+      case 'prioridade':
+        return item.prioridade ?? '-';
       case 'status_validacao':
         return (
           <div className="flex items-center gap-2">
