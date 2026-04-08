@@ -454,7 +454,7 @@ export async function processCarteiraUpload(
     console.log('[DEBUG] 5. Headers finais após renomeação:', renamedHeaders.length, renamedHeaders);
 
     // ============================================================================
-    // STEP 6: Validate exact sequence of 38 non-empty columns
+    // STEP 6: Validate exact sequence of 43 non-empty columns
     // ============================================================================
     const structureValidation = validarOrdemExataBruta(renamedHeaders);
     if (!structureValidation.valid) {
