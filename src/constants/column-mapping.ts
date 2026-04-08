@@ -41,8 +41,9 @@ export const COLUMN_TRANSFORMATION_MAP: Record<
   'Palet': { field: 'palet', transform: parseIntegerSafe },
 
   // ==================== DATE FIELDS ====================
-  // NOTE: "Data" column will be split into both data_des and data_nf during extraction
-  'Data': { field: 'data', transform: parseDateBR },
+  // NOTE: Excel has TWO "Data" columns with same name - we rename them internally
+  'Data_Des_Internal': { field: 'data_des', transform: parseDateBR },
+  'Data_NF_Internal': { field: 'data_nf', transform: parseDateBR },
   'D.L.E.': { field: 'dle', transform: parseDateBR },
 
   // ==================== TIMESTAMP FIELD ====================

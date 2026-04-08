@@ -334,7 +334,7 @@ export function validateCarteiraRow(
  * Apply column transformations using the centralized mapping.
  * Maps Excel column names to database column names and applies type transformations.
  *
- * SPECIAL HANDLING: "Data" column is mapped to BOTH data_des and data_nf (same value)
+ * NOTE: Excel has two "Data" columns (renamed to Data_Des_Internal and Data_NF_Internal)
  */
 function applyColumnTransformations(rowObject: any): any {
   const result: any = {};
@@ -342,14 +342,7 @@ function applyColumnTransformations(rowObject: any): any {
   for (const [excelColumnName, config] of Object.entries(COLUMN_TRANSFORMATION_MAP)) {
     const rawValue = rowObject[excelColumnName];
     const transformedValue = config.transform(rawValue);
-
-    // Special case: "Data" column maps to both data_des and data_nf
-    if (excelColumnName === 'Data') {
-      result['data_des'] = transformedValue;
-      result['data_nf'] = transformedValue;
-    } else {
-      result[config.field] = transformedValue;
-    }
+    result[config.field] = transformedValue;
   }
 
   return result;
@@ -362,7 +355,7 @@ function applyColumnTransformations(rowObject: any): any {
  * CRITICAL: V2 uses direct column names:
  * - "Filial R" = filial_r (filial de roteirização)
  * - "Filial D" = filial_d (filial de destino)
- * - "Data" = both data_des and data_nf (same value for pipeline)
+ * - Two "Data" columns (internally renamed to Data_Des_Internal and Data_NF_Internal)
  */
 function extractTypedColumns(row: any) {
   return applyColumnTransformations(row);
@@ -501,9 +494,22 @@ export async function processCarteiraUpload(
       const rowObject: any = {};
 
       // Map each valid column by index
+      // Special handling for duplicate "Data" column names
+      let dataColumnCount = 0;
       validColumnIndices.forEach((colIndex, mappingIndex) => {
-        const headerName = renamedHeaders[mappingIndex];
+        let headerName = renamedHeaders[mappingIndex];
         const cellValue = rawRow[colIndex];
+
+        // Handle duplicate "Data" columns by renaming internally
+        if (headerName === 'Data') {
+          dataColumnCount++;
+          if (dataColumnCount === 1) {
+            headerName = 'Data_Des_Internal'; // First "Data" = Data Des
+          } else if (dataColumnCount === 2) {
+            headerName = 'Data_NF_Internal'; // Second "Data" = Data NF
+          }
+        }
+
         rowObject[headerName] = cellValue;
       });
 

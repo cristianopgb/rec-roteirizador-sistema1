@@ -6,53 +6,54 @@
  * - Renamed columns: "Filial" → "Filial R", "Filial (origem)" → "Filial D", etc.
  * - Added new columns: "Restrição Veículo", "Carro Dedicado", "Inicio Ent.", "Fim En", "Tipo Ca"
  * - Removed columns: "Região", "Veiculo Exclusivo", "Tipo C"
- * - Consolidated: "Data Des" and "Data NF" → single "Data" column (same meaning for pipeline)
+ * - Has TWO "Data" columns (Data Des and Data NF both named "Data" in export)
  * - Removed: "Endereço" and "Número" columns
- * - Total: 43 columns in EXACT order
+ * - Total: 43 columns in EXACT order AS RECEIVED FROM CLIENT
  */
 export const COLUNAS_BRUTAS_REC = [
-  'Filial R',           // 1 - Filial de roteirização (renomeada de "Filial")
+  'Filial R',           // 1
   'Romane',             // 2
-  'Filial D',           // 3 - Filial de origem (renomeada de "Filial (origem)")
+  'Filial D',           // 3
   'Série',              // 4
   'Nro Doc.',           // 5
-  'Data',               // 6 - Consolidated (replaces "Data Des" and "Data NF")
-  'D.L.E.',             // 7
-  'Agendam.',           // 8
-  'Palet',              // 9
-  'Conf',               // 10
-  'Peso',               // 11
-  'Vlr.Merc.',          // 12
-  'Qtd.',               // 13
-  'Peso Cub.',          // 14 - Renomeada de "Peso C"
-  'Classif',            // 15 - Renomeada de "Classifi"
-  'Tomad',              // 16 - Renomeada de "Tomador"
-  'Destin',             // 17 - Renomeada de "Destinatário"
-  'Bairro',             // 18
-  'Cidad',              // 19 - Renomeada de "Cida"
-  'UF',                 // 20
-  'NF / Serie',         // 21
-  'Tipo Carga',         // 22
-  'Tipo Ca',            // 23 - NEW COLUMN
+  'Data',               // 6 - Data Des (first occurrence)
+  'Data',               // 7 - Data NF (second occurrence - DUPLICATE NAME!)
+  'D.L.E.',             // 8
+  'Agendam.',           // 9
+  'Palet',              // 10
+  'Conf',               // 11
+  'Peso',               // 12
+  'Vlr.Merc.',          // 13
+  'Qtd.',               // 14
+  'Peso Cub.',          // 15
+  'Classif',            // 16
+  'Tomad',              // 17
+  'Destin',             // 18
+  'Bairro',             // 19
+  'Cidad',              // 20
+  'UF',                 // 21
+  'NF / Serie',         // 22
+  'Tipo Ca',            // 23
   'Qtd.NF',             // 24
-  'Sub-Região',         // 25
-  'Ocorrências NF',     // 26 - Renomeada de "Ocorrências NFs"
-  'Remetente',          // 27
-  'Observação',         // 28 - Renomeada de "Observação R"
-  'Ref Cliente',        // 29
-  'Cidade Dest.',       // 30
-  'Mesoregião',         // 31
+  'Mesoregião',         // 25
+  'Sub-Região',         // 26
+  'Ocorrências NF',     // 27
+  'Remetente',          // 28
+  'Observação',         // 29
+  'Ref Cliente',        // 30
+  'Cidade Dest.',       // 31
   'Agenda',             // 32
-  'Última Ocorrência',  // 33 - Renomeada de "Última"
-  'Status R',           // 34 - Renomeada de "Status"
-  'Latitude',           // 35 - Renomeada de "Lat."
-  'Longitude',          // 36 - Renomeada de "Lon."
-  'Peso Calculo',       // 37 - Renomeada de "Peso Calculado"
-  'Prioridade',         // 38
-  'Restrição Veículo',  // 39 - NEW COLUMN
-  'Carro Dedicado',     // 40 - NEW COLUMN
-  'Inicio Ent.',        // 41 - NEW COLUMN (horário)
-  'Fim En',             // 42 - NEW COLUMN (horário)
+  'Tipo Carga',         // 33
+  'Última Ocorrência',  // 34
+  'Status R',           // 35
+  'Latitude',           // 36
+  'Longitude',          // 37
+  'Peso Calculo',       // 38
+  'Prioridade',         // 39
+  'Restrição Veículo',  // 40
+  'Carro Dedicado',     // 41
+  'Inicio Ent.',        // 42
+  'Fim En',             // 43
 ] as const;
 
 /**
@@ -64,6 +65,7 @@ export const COLUNAS_BRUTAS_REC = [
  * - Space sensitive
  * - Accent sensitive
  * - No normalization allowed
+ * - Includes DUPLICATE "Data" column names (positions 6 and 7)
  *
  * Total: 43 required columns
  */
@@ -73,6 +75,7 @@ export const COLUNAS_OBRIGATORIAS_EXCEL = [
   'Filial D',
   'Série',
   'Nro Doc.',
+  'Data',
   'Data',
   'D.L.E.',
   'Agendam.',
@@ -89,17 +92,17 @@ export const COLUNAS_OBRIGATORIAS_EXCEL = [
   'Cidad',
   'UF',
   'NF / Serie',
-  'Tipo Carga',
   'Tipo Ca',
   'Qtd.NF',
+  'Mesoregião',
   'Sub-Região',
   'Ocorrências NF',
   'Remetente',
   'Observação',
   'Ref Cliente',
   'Cidade Dest.',
-  'Mesoregião',
   'Agenda',
+  'Tipo Carga',
   'Última Ocorrência',
   'Status R',
   'Latitude',
@@ -166,6 +169,10 @@ export const EXCEL_TO_DB_MAP: Record<string, string> = {
 /**
  * Type representing a single row from the carteira Excel file - VERSION 2.
  * All fields from the 43-column structure.
+ *
+ * NOTE: Excel has two "Data" columns with the same name. We rename them internally:
+ * - First "Data" becomes "Data_Des_Internal"
+ * - Second "Data" becomes "Data_NF_Internal"
  */
 export type CarteiraExcelRow = Partial<Record<string, any>> & {
   'Filial R': string;
@@ -173,7 +180,8 @@ export type CarteiraExcelRow = Partial<Record<string, any>> & {
   'Filial D': string;
   'Série': string;
   'Nro Doc.': string;
-  'Data': string;
+  'Data_Des_Internal': string; // Internal name for first "Data" column
+  'Data_NF_Internal': string;  // Internal name for second "Data" column
   'D.L.E.': string;
   'Agendam.': string;
   'Palet': string;
@@ -189,17 +197,17 @@ export type CarteiraExcelRow = Partial<Record<string, any>> & {
   'Cidad': string;
   'UF': string;
   'NF / Serie': string;
-  'Tipo Carga': string;
   'Tipo Ca': string;
   'Qtd.NF': string | number;
+  'Mesoregião': string;
   'Sub-Região': string;
   'Ocorrências NF': string;
   'Remetente': string;
   'Observação': string;
   'Ref Cliente': string;
   'Cidade Dest.': string;
-  'Mesoregião': string;
   'Agenda': string;
+  'Tipo Carga': string;
   'Última Ocorrência': string;
   'Status R': string;
   'Latitude': string | number;
