@@ -7,8 +7,8 @@
  * - Added new columns: "Restrição Veículo", "Carro Dedicado", "Inicio Ent.", "Fim En", "Tipo Ca"
  * - Removed columns: "Região", "Veiculo Exclusivo", "Tipo C"
  * - Has TWO "Data" columns (Data Des and Data NF both named "Data" in export)
- * - Removed: "Endereço" and "Número" columns
- * - Total: 43 columns in EXACT order AS RECEIVED FROM CLIENT
+ * - Added: "Endereço" and "Número" columns
+ * - Total: 50 columns in EXACT order AS RECEIVED FROM CLIENT
  */
 export const COLUNAS_BRUTAS_REC = [
   'Filial R',           // 1
@@ -29,31 +29,38 @@ export const COLUNAS_BRUTAS_REC = [
   'Classif',            // 16
   'Tomad',              // 17
   'Destin',             // 18
-  'Bairro',             // 19
-  'Cidad',              // 20
-  'UF',                 // 21
-  'NF / Serie',         // 22
-  'Tipo Ca',            // 23
-  'Qtd.NF',             // 24
-  'Mesoregião',         // 25
-  'Sub-Região',         // 26
-  'Ocorrências NF',     // 27
-  'Remetente',          // 28
-  'Observação',         // 29
-  'Ref Cliente',        // 30
-  'Cidade Dest.',       // 31
-  'Agenda',             // 32
-  'Tipo Carga',         // 33
-  'Última Ocorrência',  // 34
-  'Status R',           // 35
-  'Latitude',           // 36
-  'Longitude',          // 37
-  'Peso Calculo',       // 38
-  'Prioridade',         // 39
-  'Restrição Veículo',  // 40
-  'Carro Dedicado',     // 41
-  'Inicio Ent.',        // 42
-  'Fim En',             // 43
+  'Endereco',           // 19
+  'Numero',             // 20
+  'Bairro',             // 21
+  'Cidad',              // 22
+  'UF',                 // 23
+  'NF / Serie',         // 24
+  'Tipo Ca',            // 25
+  'Qtd.NF',             // 26
+  'Mesoregião',         // 27
+  'Sub-Região',         // 28
+  'Ocorrências NF',     // 29
+  'Remetente',          // 30
+  'Observação',         // 31
+  'Ref Cliente',        // 32
+  'Cidade Dest.',       // 33
+  'Agenda',             // 34
+  'Tipo Carga',         // 35
+  'Última Ocorrência',  // 36
+  'Status R',           // 37
+  'Latitude',           // 38
+  'Longitude',          // 39
+  'Peso Calculo',       // 40
+  'Prioridade',         // 41
+  'Restrição Veículo',  // 42
+  'Carro Dedicado',     // 43
+  'Inicio Ent.',        // 44
+  'Fim En',             // 45
+  'Placa Preferencial', // 46
+  'Motorista Preferencial', // 47
+  'Observação Interna', // 48
+  'Cliente Novo',       // 49
+  'Temperatura Controlada', // 50
 ] as const;
 
 /**
@@ -67,7 +74,7 @@ export const COLUNAS_BRUTAS_REC = [
  * - No normalization allowed
  * - Includes DUPLICATE "Data" column names (positions 6 and 7)
  *
- * Total: 43 required columns
+ * Total: 50 required columns
  */
 export const COLUNAS_OBRIGATORIAS_EXCEL = [
   'Filial R',
@@ -88,6 +95,8 @@ export const COLUNAS_OBRIGATORIAS_EXCEL = [
   'Classif',
   'Tomad',
   'Destin',
+  'Endereco',
+  'Numero',
   'Bairro',
   'Cidad',
   'UF',
@@ -113,6 +122,11 @@ export const COLUNAS_OBRIGATORIAS_EXCEL = [
   'Carro Dedicado',
   'Inicio Ent.',
   'Fim En',
+  'Placa Preferencial',
+  'Motorista Preferencial',
+  'Observação Interna',
+  'Cliente Novo',
+  'Temperatura Controlada',
 ] as const;
 
 /**
@@ -139,6 +153,8 @@ export const EXCEL_TO_DB_MAP: Record<string, string> = {
   'Classif': 'classif',
   'Tomad': 'tomador',
   'Destin': 'destinatario',
+  'Endereco': 'endereco',
+  'Numero': 'numero',
   'Bairro': 'bairro',
   'Cidad': 'cidade',
   'UF': 'uf',
@@ -164,11 +180,16 @@ export const EXCEL_TO_DB_MAP: Record<string, string> = {
   'Carro Dedicado': 'carro_dedicado',
   'Inicio Ent.': 'inicio_entrega',
   'Fim En': 'fim_entrega',
+  'Placa Preferencial': 'placa_preferencial',
+  'Motorista Preferencial': 'motorista_preferencial',
+  'Observação Interna': 'observacao_interna',
+  'Cliente Novo': 'cliente_novo',
+  'Temperatura Controlada': 'temperatura_controlada',
 };
 
 /**
  * Type representing a single row from the carteira Excel file - VERSION 2.
- * All fields from the 43-column structure.
+ * All fields from the 50-column structure.
  *
  * NOTE: Excel has two "Data" columns with the same name. We rename them internally:
  * - First "Data" becomes "Data_Des_Internal"

@@ -108,7 +108,7 @@ function renomearFilialOrigem(headers: string[]): string[] {
 }
 
 /**
- * Validates EXACT order and names of the 43 raw columns from REC file V2.
+ * Validates EXACT order and names of the 50 raw columns from REC file V2.
  * This validation happens on the SEQUENCE of non-empty columns (not original sheet indices).
  * NO tolerance for different order or names.
  *
@@ -116,12 +116,12 @@ function renomearFilialOrigem(headers: string[]): string[] {
  * CRITICAL: V2 uses single "Data" column (not "Data Des" and "Data NF").
  */
 function validarOrdemExataBruta(headers: string[]): StructureValidationResult {
-  // Must have exactly 43 columns after removing empty ones
-  if (headers.length !== 43) {
+  // Must have exactly 50 columns after removing empty ones
+  if (headers.length !== 50) {
     const columnsInfo = `Colunas encontradas: [${headers.join(', ')}]`;
     return {
       valid: false,
-      errorMessage: `Arquivo fora do layout oficial da carteira REC V2 após limpeza de colunas inválidas. Esperado: 43 colunas, encontrado: ${headers.length}. ${columnsInfo}`,
+      errorMessage: `Arquivo fora do layout oficial da carteira REC V2 após limpeza de colunas inválidas. Esperado: 50 colunas, encontrado: ${headers.length}. ${columnsInfo}`,
     };
   }
 
@@ -234,98 +234,16 @@ interface CarteiraItem {
 /**
  * Validates a single carteira row - V2 structure.
  * Operates on row object with EXACT Excel column names.
+ *
+ * IMPORTANT: This function now performs NO CONTENT VALIDATION.
+ * It accepts all rows as valid regardless of their content.
+ * All business logic validation will be performed by the downstream system.
+ *
+ * This is a "passive receiver" that only validates structure (done elsewhere).
  */
 export function validateCarteiraRow(
   row: Partial<CarteiraExcelRow>
 ): RowValidationResult {
-  const errors: string[] = [];
-
-  // Validate UF (must be exactly 2 characters)
-  const uf = row['UF'];
-  if (!uf || typeof uf !== 'string' || uf.length !== 2) {
-    errors.push('UF deve ter exatamente 2 caracteres');
-  }
-
-  // Validate Peso (must be a valid number)
-  const peso = row['Peso'];
-  if (peso === undefined || peso === null || peso === '') {
-    errors.push('Peso é obrigatório');
-  } else {
-    const pesoNum = parseNumberBR(peso);
-    if (pesoNum === null) {
-      errors.push('Peso deve ser um número válido');
-    }
-  }
-
-  // Validate Vlr.Merc. (must be a valid number)
-  const vlrMerc = row['Vlr.Merc.'];
-  if (vlrMerc === undefined || vlrMerc === null || vlrMerc === '') {
-    errors.push('Vlr.Merc. é obrigatório');
-  } else {
-    const vlrMercNum = parseNumberBR(vlrMerc);
-    if (vlrMercNum === null) {
-      errors.push('Vlr.Merc. deve ser um número válido');
-    }
-  }
-
-  // Validate Latitude (optional, but if present must be valid number)
-  const lat = row['Latitude'];
-  if (lat !== undefined && lat !== null && lat !== '') {
-    const latNum = parseNumberBR(lat);
-    if (latNum === null) {
-      errors.push('Latitude deve ser um número válido');
-    }
-  }
-
-  // Validate Longitude (optional, but if present must be valid number)
-  const lon = row['Longitude'];
-  if (lon !== undefined && lon !== null && lon !== '') {
-    const lonNum = parseNumberBR(lon);
-    if (lonNum === null) {
-      errors.push('Longitude deve ser um número válido');
-    }
-  }
-
-  // V2 VALIDATIONS
-
-  // Validate delivery window (inicio must be < fim when both present)
-  const inicioEnt = row['Inicio Ent.'];
-  const fimEn = row['Fim En'];
-  if (inicioEnt && fimEn) {
-    const inicio = String(inicioEnt).trim();
-    const fim = String(fimEn).trim();
-    if (inicio && fim && inicio >= fim) {
-      errors.push('Inicio Ent. deve ser menor que Fim En');
-    }
-  }
-
-  // Validate Restricao Veiculo (if present, must be valid enum)
-  const restricao = row['Restrição Veículo'];
-  if (restricao && typeof restricao === 'string') {
-    const normalized = restricao.trim().toUpperCase().replace(/[^A-Z]/g, '');
-    const validValues = ['TRUCK', 'VUC', 'CARRETA', 'UTILITARIO', 'TOCO', 'BITRUCK', 'QUALQUER'];
-    if (normalized && !validValues.includes(normalized)) {
-      errors.push(`Restrição Veículo inválida: "${restricao}"`);
-    }
-  }
-
-  // Validate Prioridade (if present, must be valid enum)
-  const prioridade = row['Prioridade'];
-  if (prioridade) {
-    const strValue = String(prioridade).trim().toUpperCase();
-    const validValues = ['ALTA', 'MEDIA', 'MÉDIA', 'BAIXA', 'URGENTE', 'NORMAL', '0', '1', '2', '3', 'HIGH', 'MEDIUM', 'LOW', 'URGENT'];
-    if (strValue && !validValues.includes(strValue)) {
-      errors.push(`Prioridade inválida: "${prioridade}"`);
-    }
-  }
-
-  if (errors.length > 0) {
-    return {
-      status: 'invalida',
-      erro: errors.join('; '),
-    };
-  }
-
   return { status: 'valida' };
 }
 
@@ -349,7 +267,7 @@ function applyColumnTransformations(rowObject: any): any {
 }
 
 /**
- * Extract ALL 43 columns from row data for database storage - V2 structure.
+ * Extract ALL 50 columns from row data for database storage - V2 structure.
  * Maps Excel column names to database column names.
  *
  * CRITICAL: V2 uses direct column names:
@@ -368,7 +286,7 @@ function extractTypedColumns(row: any) {
  * Flow:
  * 1. Read raw Excel file starting from row 5 (L5)
  * 2. Remove empty columns (__EMPTY*)
- * 3. Validate exact sequence of 43 non-empty columns
+ * 3. Validate exact sequence of 50 non-empty columns
  * 4. Process and persist data (NO renaming - columns stay as exported)
  */
 export async function processCarteiraUpload(
@@ -454,7 +372,7 @@ export async function processCarteiraUpload(
     console.log('[DEBUG] 5. Headers finais após renomeação:', renamedHeaders.length, renamedHeaders);
 
     // ============================================================================
-    // STEP 6: Validate exact sequence of 43 non-empty columns
+    // STEP 6: Validate exact sequence of 50 non-empty columns
     // ============================================================================
     const structureValidation = validarOrdemExataBruta(renamedHeaders);
     if (!structureValidation.valid) {

@@ -233,6 +233,11 @@ export interface CarteiraItem {
   fim_entrega?: string | null;
   endereco?: string | null;
   numero?: string | null;
+  placa_preferencial?: string | null;
+  motorista_preferencial?: string | null;
+  observacao_interna?: string | null;
+  cliente_novo?: string | null;
+  temperatura_controlada?: string | null;
 
   dados_originais?: Record<string, any>;
   created_at?: string;
