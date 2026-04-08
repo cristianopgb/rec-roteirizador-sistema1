@@ -108,20 +108,20 @@ function renomearFilialOrigem(headers: string[]): string[] {
 }
 
 /**
- * Validates EXACT order and names of the 50 raw columns from REC file V2.
+ * Validates EXACT order and names of the 43 raw columns from REC file V2.
  * This validation happens on the SEQUENCE of non-empty columns (not original sheet indices).
  * NO tolerance for different order or names.
  *
  * CRITICAL: V2 structure expects "Filial R" and "Filial D" (not "Filial").
- * CRITICAL: V2 uses single "Data" column (not "Data Des" and "Data NF").
+ * CRITICAL: V2 uses TWO "Data" columns (both with the same name "Data").
  */
 function validarOrdemExataBruta(headers: string[]): StructureValidationResult {
-  // Must have exactly 50 columns after removing empty ones
-  if (headers.length !== 50) {
+  // Must have exactly 43 columns after removing empty ones
+  if (headers.length !== 43) {
     const columnsInfo = `Colunas encontradas: [${headers.join(', ')}]`;
     return {
       valid: false,
-      errorMessage: `Arquivo fora do layout oficial da carteira REC V2 após limpeza de colunas inválidas. Esperado: 50 colunas, encontrado: ${headers.length}. ${columnsInfo}`,
+      errorMessage: `Arquivo fora do layout oficial da carteira REC V2 após limpeza de colunas inválidas. Esperado: 43 colunas, encontrado: ${headers.length}. ${columnsInfo}`,
     };
   }
 
