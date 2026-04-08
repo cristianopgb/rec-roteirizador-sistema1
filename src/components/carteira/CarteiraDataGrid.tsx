@@ -55,13 +55,6 @@ export function CarteiraDataGrid({ items, itemsCount }: CarteiraDataGridProps) {
       { key: 'carro_dedicado', label: 'Carro Dedicado', width: '140px' },
       { key: 'inicio_entrega', label: 'Inicio Ent.', width: '110px' },
       { key: 'fim_entrega', label: 'Fim En', width: '110px' },
-      { key: 'endereco', label: 'Endereço', width: '250px' },
-      { key: 'numero', label: 'Número', width: '100px' },
-      { key: 'placa_preferencial', label: 'Placa Preferencial', width: '150px' },
-      { key: 'motorista_preferencial', label: 'Motorista Preferencial', width: '200px' },
-      { key: 'observacao_interna', label: 'Observação Interna', width: '200px' },
-      { key: 'cliente_novo', label: 'Cliente Novo', width: '120px' },
-      { key: 'temperatura_controlada', label: 'Temp. Controlada', width: '150px' },
       { key: 'status_validacao', label: 'Validação', width: '140px' },
     ];
     return cols;
@@ -232,20 +225,6 @@ export function CarteiraDataGrid({ items, itemsCount }: CarteiraDataGridProps) {
         return formatTime(item.inicio_entrega);
       case 'fim_entrega':
         return formatTime(item.fim_entrega);
-      case 'endereco':
-        return item.endereco ?? '-';
-      case 'numero':
-        return item.numero ?? '-';
-      case 'placa_preferencial':
-        return item.placa_preferencial ?? '-';
-      case 'motorista_preferencial':
-        return item.motorista_preferencial ?? '-';
-      case 'observacao_interna':
-        return item.observacao_interna ?? '-';
-      case 'cliente_novo':
-        return item.cliente_novo ?? '-';
-      case 'temperatura_controlada':
-        return item.temperatura_controlada ?? '-';
       case 'status_validacao':
         return item.status_validacao === 'valida' ? (
           <Badge variant="success">Válida</Badge>

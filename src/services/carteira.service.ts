@@ -219,8 +219,6 @@ interface CarteiraItem {
   agenda?: string;
   ultima_ocorrencia?: string;
   status_r?: string;
-  endereco?: string;
-  numero?: string;
 
   // V2 NEW COLUMNS - ROUTING ENHANCEMENTS
   prioridade?: string;

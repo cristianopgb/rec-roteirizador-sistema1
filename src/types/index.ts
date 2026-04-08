@@ -158,8 +158,6 @@ export interface CarteiraItemPayload {
   cidade?: string;
   uf?: string;
   bairro?: string;
-  endereco?: string;
-  numero?: string;
   latitude?: number;
   longitude?: number;
   peso?: number;
@@ -231,14 +229,6 @@ export interface CarteiraItem {
   carro_dedicado?: boolean | null;
   inicio_entrega?: string | null;
   fim_entrega?: string | null;
-  endereco?: string | null;
-  numero?: string | null;
-  placa_preferencial?: string | null;
-  motorista_preferencial?: string | null;
-  observacao_interna?: string | null;
-  cliente_novo?: string | null;
-  temperatura_controlada?: string | null;
-
   dados_originais?: Record<string, any>;
   created_at?: string;
 }

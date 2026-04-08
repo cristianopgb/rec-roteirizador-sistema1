@@ -1,5 +1,5 @@
 /**
- * Column Mapping Configuration - V2 Structure (50 columns)
+ * Column Mapping Configuration - V2 Structure (43 columns)
  *
  * Maps Excel column names to database field names with transformation functions.
  * This provides a centralized, declarative way to handle all column transformations.
@@ -21,7 +21,8 @@ import {
 } from '../utils/column-transformers';
 
 /**
- * Maps Excel column names to database fields with transformation functions
+ * Maps Excel column names to database fields with transformation functions.
+ * Covers the 43-column V2 structure exactly as received from REC ERP.
  */
 export const COLUMN_TRANSFORMATION_MAP: Record<
   string,
@@ -91,11 +92,4 @@ export const COLUMN_TRANSFORMATION_MAP: Record<
   'Agenda': { field: 'agenda', transform: parseTextSafe },
   'Última Ocorrência': { field: 'ultima_ocorrencia', transform: parseTextSafe },
   'Status R': { field: 'status_r', transform: parseTextSafe },
-  'Endereco': { field: 'endereco', transform: parseTextSafe },
-  'Numero': { field: 'numero', transform: parseTextSafe },
-  'Placa Preferencial': { field: 'placa_preferencial', transform: parseTextSafe },
-  'Motorista Preferencial': { field: 'motorista_preferencial', transform: parseTextSafe },
-  'Observação Interna': { field: 'observacao_interna', transform: parseTextSafe },
-  'Cliente Novo': { field: 'cliente_novo', transform: parseTextSafe },
-  'Temperatura Controlada': { field: 'temperatura_controlada', transform: parseTextSafe },
 };
