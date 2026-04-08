@@ -6,7 +6,9 @@
  * - Renamed columns: "Filial" → "Filial R", "Filial (origem)" → "Filial D", etc.
  * - Added new columns: "Restrição Veículo", "Carro Dedicado", "Inicio Ent.", "Fim En", "Tipo Ca"
  * - Removed columns: "Região", "Veiculo Exclusivo", "Tipo C"
- * - Total: 45 columns in EXACT order
+ * - Consolidated: "Data Des" and "Data NF" → single "Data" column (same meaning for pipeline)
+ * - Removed: "Endereço" and "Número" columns
+ * - Total: 43 columns in EXACT order
  */
 export const COLUNAS_BRUTAS_REC = [
   'Filial R',           // 1 - Filial de roteirização (renomeada de "Filial")
@@ -14,46 +16,43 @@ export const COLUNAS_BRUTAS_REC = [
   'Filial D',           // 3 - Filial de origem (renomeada de "Filial (origem)")
   'Série',              // 4
   'Nro Doc.',           // 5
-  'Data Des',           // 6
-  'Data NF',            // 7
-  'D.L.E.',             // 8
-  'Agendam.',           // 9
-  'Palet',              // 10
-  'Conf',               // 11
-  'Peso',               // 12
-  'Vlr.Merc.',          // 13
-  'Qtd.',               // 14
-  'Peso Cub.',          // 15 - Renomeada de "Peso C"
-  'Classif',            // 16 - Renomeada de "Classifi"
-  'Tomad',              // 17 - Renomeada de "Tomador"
-  'Destin',             // 18 - Renomeada de "Destinatário"
-  'Bairro',             // 19
-  'Cidad',              // 20 - Renomeada de "Cida"
-  'UF',                 // 21
-  'NF / Serie',         // 22
-  'Tipo Carga',         // 23
-  'Tipo Ca',            // 24 - NEW COLUMN
-  'Qtd.NF',             // 25
-  'Sub-Região',         // 26
-  'Ocorrências NF',     // 27 - Renomeada de "Ocorrências NFs"
-  'Remetente',          // 28
-  'Observação',         // 29 - Renomeada de "Observação R"
-  'Ref Cliente',        // 30
-  'Cidade Dest.',       // 31
-  'Mesoregião',         // 32
-  'Agenda',             // 33
-  'Última Ocorrência',  // 34 - Renomeada de "Última"
-  'Status R',           // 35 - Renomeada de "Status"
-  'Latitude',           // 36 - Renomeada de "Lat."
-  'Longitude',          // 37 - Renomeada de "Lon."
-  'Peso Calculo',       // 38 - Renomeada de "Peso Calculado"
-  'Prioridade',         // 39
-  'Restrição Veículo',  // 40 - NEW COLUMN
-  'Carro Dedicado',     // 41 - NEW COLUMN
-  'Inicio Ent.',        // 42 - NEW COLUMN (horário)
-  'Fim En',             // 43 - NEW COLUMN (horário)
-  'Endereço',           // 44 - NEW COLUMN
-  'Número',             // 45 - NEW COLUMN
+  'Data',               // 6 - Consolidated (replaces "Data Des" and "Data NF")
+  'D.L.E.',             // 7
+  'Agendam.',           // 8
+  'Palet',              // 9
+  'Conf',               // 10
+  'Peso',               // 11
+  'Vlr.Merc.',          // 12
+  'Qtd.',               // 13
+  'Peso Cub.',          // 14 - Renomeada de "Peso C"
+  'Classif',            // 15 - Renomeada de "Classifi"
+  'Tomad',              // 16 - Renomeada de "Tomador"
+  'Destin',             // 17 - Renomeada de "Destinatário"
+  'Bairro',             // 18
+  'Cidad',              // 19 - Renomeada de "Cida"
+  'UF',                 // 20
+  'NF / Serie',         // 21
+  'Tipo Carga',         // 22
+  'Tipo Ca',            // 23 - NEW COLUMN
+  'Qtd.NF',             // 24
+  'Sub-Região',         // 25
+  'Ocorrências NF',     // 26 - Renomeada de "Ocorrências NFs"
+  'Remetente',          // 27
+  'Observação',         // 28 - Renomeada de "Observação R"
+  'Ref Cliente',        // 29
+  'Cidade Dest.',       // 30
+  'Mesoregião',         // 31
+  'Agenda',             // 32
+  'Última Ocorrência',  // 33 - Renomeada de "Última"
+  'Status R',           // 34 - Renomeada de "Status"
+  'Latitude',           // 35 - Renomeada de "Lat."
+  'Longitude',          // 36 - Renomeada de "Lon."
+  'Peso Calculo',       // 37 - Renomeada de "Peso Calculado"
+  'Prioridade',         // 38
+  'Restrição Veículo',  // 39 - NEW COLUMN
+  'Carro Dedicado',     // 40 - NEW COLUMN
+  'Inicio Ent.',        // 41 - NEW COLUMN (horário)
+  'Fim En',             // 42 - NEW COLUMN (horário)
 ] as const;
 
 /**
@@ -66,7 +65,7 @@ export const COLUNAS_BRUTAS_REC = [
  * - Accent sensitive
  * - No normalization allowed
  *
- * Total: 45 required columns
+ * Total: 43 required columns
  */
 export const COLUNAS_OBRIGATORIAS_EXCEL = [
   'Filial R',
@@ -74,8 +73,7 @@ export const COLUNAS_OBRIGATORIAS_EXCEL = [
   'Filial D',
   'Série',
   'Nro Doc.',
-  'Data Des',
-  'Data NF',
+  'Data',
   'D.L.E.',
   'Agendam.',
   'Palet',
@@ -112,13 +110,13 @@ export const COLUNAS_OBRIGATORIAS_EXCEL = [
   'Carro Dedicado',
   'Inicio Ent.',
   'Fim En',
-  'Endereço',
-  'Número',
 ] as const;
 
 /**
  * Mapping from exact Excel column names (V2) to database-safe column names.
  * Used for extracting data from JSONB to typed columns.
+ *
+ * NOTE: "Data" column maps to BOTH data_des and data_nf (same value for pipeline)
  */
 export const EXCEL_TO_DB_MAP: Record<string, string> = {
   'Filial R': 'filial_r',
@@ -126,8 +124,7 @@ export const EXCEL_TO_DB_MAP: Record<string, string> = {
   'Romane': 'romane',
   'Série': 'serie',
   'Nro Doc.': 'nro_doc',
-  'Data Des': 'data_des',
-  'Data NF': 'data_nf',
+  'Data': 'data', // Will be split into data_des and data_nf during transformation
   'D.L.E.': 'dle',
   'Agendam.': 'agendam',
   'Palet': 'palet',
@@ -164,13 +161,11 @@ export const EXCEL_TO_DB_MAP: Record<string, string> = {
   'Carro Dedicado': 'carro_dedicado',
   'Inicio Ent.': 'inicio_entrega',
   'Fim En': 'fim_entrega',
-  'Endereço': 'endereco',
-  'Número': 'numero',
 };
 
 /**
  * Type representing a single row from the carteira Excel file - VERSION 2.
- * All fields from the 45-column structure.
+ * All fields from the 43-column structure.
  */
 export type CarteiraExcelRow = Partial<Record<string, any>> & {
   'Filial R': string;
@@ -178,8 +173,7 @@ export type CarteiraExcelRow = Partial<Record<string, any>> & {
   'Filial D': string;
   'Série': string;
   'Nro Doc.': string;
-  'Data Des': string;
-  'Data NF': string;
+  'Data': string;
   'D.L.E.': string;
   'Agendam.': string;
   'Palet': string;
@@ -216,8 +210,6 @@ export type CarteiraExcelRow = Partial<Record<string, any>> & {
   'Carro Dedicado': string | boolean;
   'Inicio Ent.': string;
   'Fim En': string;
-  'Endereço': string;
-  'Número': string | number;
 };
 
 /**

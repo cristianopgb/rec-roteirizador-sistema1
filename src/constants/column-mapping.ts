@@ -1,8 +1,10 @@
 /**
- * Column Mapping Configuration - V2 Structure (45 columns)
+ * Column Mapping Configuration - V2 Structure (43 columns)
  *
  * Maps Excel column names to database field names with transformation functions.
  * This provides a centralized, declarative way to handle all column transformations.
+ *
+ * IMPORTANT: "Data" column is transformed into BOTH data_des and data_nf (same value)
  */
 
 import {
@@ -39,8 +41,8 @@ export const COLUMN_TRANSFORMATION_MAP: Record<
   'Palet': { field: 'palet', transform: parseIntegerSafe },
 
   // ==================== DATE FIELDS ====================
-  'Data Des': { field: 'data_des', transform: parseDateBR },
-  'Data NF': { field: 'data_nf', transform: parseDateBR },
+  // NOTE: "Data" column will be split into both data_des and data_nf during extraction
+  'Data': { field: 'data', transform: parseDateBR },
   'D.L.E.': { field: 'dle', transform: parseDateBR },
 
   // ==================== TIMESTAMP FIELD ====================
@@ -88,6 +90,4 @@ export const COLUMN_TRANSFORMATION_MAP: Record<
   'Agenda': { field: 'agenda', transform: parseTextSafe },
   'Última Ocorrência': { field: 'ultima_ocorrencia', transform: parseTextSafe },
   'Status R': { field: 'status_r', transform: parseTextSafe },
-  'Endereço': { field: 'endereco', transform: parseTextSafe },
-  'Número': { field: 'numero', transform: parseTextSafe },
 };
