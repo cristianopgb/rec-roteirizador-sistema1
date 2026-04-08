@@ -22,12 +22,15 @@ export function CarteiraFilters({
 }: CarteiraFiltersProps) {
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState<CarteiraFilterValues>({
-    filial: !isAdmin && userFilial ? [userFilial] : undefined,
+    filial_r: !isAdmin && userFilial ? [userFilial] : undefined,
     uf: undefined,
-    destinatario: undefined,
-    cida: undefined,
-    tomador: undefined,
+    destin: undefined,
+    cidade: undefined,
+    tomad: undefined,
     mesoregiao: undefined,
+    prioridade: undefined,
+    restricao_veiculo: undefined,
+    carro_dedicado: undefined,
     tipo_roteirizacao: 'carteira',
     configuracao_frota: [],
   });
@@ -84,15 +87,15 @@ export function CarteiraFilters({
     try {
       const { data, error } = await supabase
         .from('carteira_itens')
-        .select('filial')
+        .select('filial_r')
         .eq('upload_id', uploadId)
-        .not('filial', 'is', null)
-        .order('filial');
+        .not('filial_r', 'is', null)
+        .order('filial_r');
 
       if (error) throw error;
 
       const uniqueFiliais = Array.from(
-        new Set((data || []).map(item => item.filial).filter(Boolean))
+        new Set((data || []).map(item => item.filial_r).filter(Boolean))
       ) as string[];
 
       uniqueFiliais.sort((a, b) => {
@@ -137,15 +140,15 @@ export function CarteiraFilters({
     try {
       const { data, error } = await supabase
         .from('carteira_itens')
-        .select('tomador')
+        .select('tomad')
         .eq('upload_id', uploadId)
-        .not('tomador', 'is', null)
-        .order('tomador');
+        .not('tomad', 'is', null)
+        .order('tomad');
 
       if (error) throw error;
 
       const uniqueTomadores = Array.from(
-        new Set((data || []).map(item => item.tomador).filter(Boolean))
+        new Set((data || []).map(item => item.tomad).filter(Boolean))
       ) as string[];
 
       setTomadores(uniqueTomadores.sort());
@@ -160,15 +163,15 @@ export function CarteiraFilters({
     try {
       const { data, error } = await supabase
         .from('carteira_itens')
-        .select('destinatario')
+        .select('destin')
         .eq('upload_id', uploadId)
-        .not('destinatario', 'is', null)
-        .order('destinatario');
+        .not('destin', 'is', null)
+        .order('destin');
 
       if (error) throw error;
 
       const uniqueDestinatarios = Array.from(
-        new Set((data || []).map(item => item.destinatario).filter(Boolean))
+        new Set((data || []).map(item => item.destin).filter(Boolean))
       ) as string[];
 
       setDestinatarios(uniqueDestinatarios.sort());
@@ -183,15 +186,15 @@ export function CarteiraFilters({
     try {
       const { data, error } = await supabase
         .from('carteira_itens')
-        .select('cida')
+        .select('cidade')
         .eq('upload_id', uploadId)
-        .not('cida', 'is', null)
-        .order('cida');
+        .not('cidade', 'is', null)
+        .order('cidade');
 
       if (error) throw error;
 
       const uniqueCidades = Array.from(
-        new Set((data || []).map(item => item.cida).filter(Boolean))
+        new Set((data || []).map(item => item.cidade).filter(Boolean))
       ) as string[];
 
       setCidades(uniqueCidades.sort());
@@ -326,7 +329,7 @@ export function CarteiraFilters({
                 label="Filial"
                 value={Array.isArray(filters.filial) ? filters.filial : (filters.filial ? [filters.filial] : [])}
                 options={filiais.map(f => ({ value: f, label: f }))}
-                onChange={(values) => handleFilterChange('filial', values.length > 0 ? values : undefined)}
+                onChange={(values) => handleFilterChange('filial_r', values.length > 0 ? values : undefined)}
                 placeholder="Todas"
               />
             )}
@@ -353,7 +356,7 @@ export function CarteiraFilters({
               label="Destinatário"
               value={Array.isArray(filters.destinatario) ? filters.destinatario : (filters.destinatario ? [filters.destinatario] : [])}
               options={destinatarios.map(d => ({ value: d, label: d }))}
-              onChange={(values) => handleFilterChange('destinatario', values.length > 0 ? values : undefined)}
+              onChange={(values) => handleFilterChange('destin', values.length > 0 ? values : undefined)}
               placeholder="Todos"
             />
 
@@ -361,7 +364,7 @@ export function CarteiraFilters({
               label="Cidade"
               value={Array.isArray(filters.cida) ? filters.cida : (filters.cida ? [filters.cida] : [])}
               options={cidades.map(c => ({ value: c, label: c }))}
-              onChange={(values) => handleFilterChange('cida', values.length > 0 ? values : undefined)}
+              onChange={(values) => handleFilterChange('cidade', values.length > 0 ? values : undefined)}
               placeholder="Todas"
             />
 
@@ -369,7 +372,7 @@ export function CarteiraFilters({
               label="Tomador"
               value={Array.isArray(filters.tomador) ? filters.tomador : (filters.tomador ? [filters.tomador] : [])}
               options={tomadores.map(t => ({ value: t, label: t }))}
-              onChange={(values) => handleFilterChange('tomador', values.length > 0 ? values : undefined)}
+              onChange={(values) => handleFilterChange('tomad', values.length > 0 ? values : undefined)}
               placeholder="Todos"
             />
           </div>

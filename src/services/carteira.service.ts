@@ -100,42 +100,27 @@ function removerColunasVazias(headers: string[]): string[] {
 }
 
 /**
- * Rename the 3rd "Filial" column to "Filial (origem)" to eliminate ambiguity.
- * The raw REC export has two columns named "Filial":
- * - Position 0 (1st): Filial (stays as is)
- * - Position 2 (3rd): Filial → renamed to "Filial (origem)"
+ * V2 structure no longer needs filial renaming.
+ * Headers now come as "Filial R" and "Filial D" directly from Excel.
  */
 function renomearFilialOrigem(headers: string[]): string[] {
-  const renamed = [...headers];
-  let filialCount = 0;
-
-  for (let i = 0; i < renamed.length; i++) {
-    if (renamed[i] === 'Filial') {
-      filialCount++;
-      // Rename the 2nd occurrence (which is position 2, the 3rd column)
-      if (filialCount === 2) {
-        renamed[i] = 'Filial (origem)';
-      }
-    }
-  }
-
-  return renamed;
+  return headers;
 }
 
 /**
- * Validates EXACT order and names of the 38 raw columns from REC file.
+ * Validates EXACT order and names of the 45 raw columns from REC file V2.
  * This validation happens on the SEQUENCE of non-empty columns (not original sheet indices).
  * NO tolerance for different order or names.
  *
- * CRITICAL: After renaming, expects "Filial" at position 0 and "Filial (origem)" at position 2.
+ * CRITICAL: V2 structure expects "Filial R" and "Filial D" (not "Filial").
  */
 function validarOrdemExataBruta(headers: string[]): StructureValidationResult {
-  // Must have exactly 41 columns after removing empty ones
-  if (headers.length !== 41) {
+  // Must have exactly 45 columns after removing empty ones
+  if (headers.length !== 45) {
     const columnsInfo = `Colunas encontradas: [${headers.join(', ')}]`;
     return {
       valid: false,
-      errorMessage: `Arquivo fora do layout oficial da carteira REC após limpeza de colunas inválidas. Esperado: 41 colunas, encontrado: ${headers.length}. ${columnsInfo}`,
+      errorMessage: `Arquivo fora do layout oficial da carteira REC V2 após limpeza de colunas inválidas. Esperado: 45 colunas, encontrado: ${headers.length}. ${columnsInfo}`,
     };
   }
 
@@ -187,9 +172,9 @@ interface CarteiraItem {
   erro_validacao?: string;
 
   // INTEGER FIELDS
-  filial?: number;
+  filial_r?: number;
   romane?: number;
-  filial_origem?: number;
+  filial_d?: number;
   serie?: number;
   nro_doc?: number;
   qtd?: number;
@@ -207,42 +192,46 @@ interface CarteiraItem {
   // DECIMAL NUMBER FIELDS
   peso?: number;
   vlr_merc?: number;
-  peso_c?: number;
-  lat?: number;
-  lon?: number;
+  peso_cubico?: number;
+  latitude?: number;
+  longitude?: number;
+  peso_calculo?: number;
 
   // TEXT FIELDS
   conf?: string;
-  classifi?: string;
-  tomador?: string;
-  destinatario?: string;
+  classif?: string;
+  tomad?: string;
+  destin?: string;
   bairro?: string;
-  cida?: string;
+  cidade?: string;
   uf?: string;
   nf_serie?: string;
   tipo_carga?: string;
-  regiao?: string;
+  tipo_ca?: string;
   sub_regiao?: string;
-  ocorrencias_nfs?: string;
+  ocorrencias_nf?: string;
   remetente?: string;
-  observacao_r?: string;
+  observacao?: string;
   ref_cliente?: string;
   cidade_dest?: string;
   mesoregiao?: string;
   agenda?: string;
-  tipo_c?: string;
-  ultima?: string;
-  status?: string;
+  ultima_ocorrencia?: string;
+  status_r?: string;
+  endereco?: string;
+  numero?: string;
 
-  // NEW COLUMNS (Sprint 4)
-  veiculo_exclusivo?: string;
-  peso_calculado?: number;
-  prioridade?: number;
+  // V2 NEW COLUMNS - ROUTING ENHANCEMENTS
+  prioridade?: string;
+  restricao_veiculo?: string;
+  carro_dedicado?: boolean;
+  inicio_entrega?: string | null;
+  fim_entrega?: string | null;
 }
 
 
 /**
- * Validates a single carteira row.
+ * Validates a single carteira row - V2 structure.
  * Operates on row object with EXACT Excel column names.
  */
 export function validateCarteiraRow(
@@ -278,21 +267,54 @@ export function validateCarteiraRow(
     }
   }
 
-  // Validate Lat. (optional, but if present must be valid number)
-  const lat = row['Lat.'];
+  // Validate Latitude (optional, but if present must be valid number)
+  const lat = row['Latitude'];
   if (lat !== undefined && lat !== null && lat !== '') {
     const latNum = parseNumberBR(lat);
     if (latNum === null) {
-      errors.push('Lat. deve ser um número válido');
+      errors.push('Latitude deve ser um número válido');
     }
   }
 
-  // Validate Lon. (optional, but if present must be valid number)
-  const lon = row['Lon.'];
+  // Validate Longitude (optional, but if present must be valid number)
+  const lon = row['Longitude'];
   if (lon !== undefined && lon !== null && lon !== '') {
     const lonNum = parseNumberBR(lon);
     if (lonNum === null) {
-      errors.push('Lon. deve ser um número válido');
+      errors.push('Longitude deve ser um número válido');
+    }
+  }
+
+  // V2 VALIDATIONS
+
+  // Validate delivery window (inicio must be < fim when both present)
+  const inicioEnt = row['Inicio Ent.'];
+  const fimEn = row['Fim En'];
+  if (inicioEnt && fimEn) {
+    const inicio = String(inicioEnt).trim();
+    const fim = String(fimEn).trim();
+    if (inicio && fim && inicio >= fim) {
+      errors.push('Inicio Ent. deve ser menor que Fim En');
+    }
+  }
+
+  // Validate Restricao Veiculo (if present, must be valid enum)
+  const restricao = row['Restrição Veículo'];
+  if (restricao && typeof restricao === 'string') {
+    const normalized = restricao.trim().toUpperCase().replace(/[^A-Z]/g, '');
+    const validValues = ['TRUCK', 'VUC', 'CARRETA', 'UTILITARIO', 'TOCO', 'BITRUCK', 'QUALQUER'];
+    if (normalized && !validValues.includes(normalized)) {
+      errors.push(`Restrição Veículo inválida: "${restricao}"`);
+    }
+  }
+
+  // Validate Prioridade (if present, must be valid enum)
+  const prioridade = row['Prioridade'];
+  if (prioridade) {
+    const strValue = String(prioridade).trim().toUpperCase();
+    const validValues = ['ALTA', 'MEDIA', 'MÉDIA', 'BAIXA', 'URGENTE', 'NORMAL', '0', '1', '2', '3', 'HIGH', 'MEDIUM', 'LOW', 'URGENT'];
+    if (strValue && !validValues.includes(strValue)) {
+      errors.push(`Prioridade inválida: "${prioridade}"`);
     }
   }
 
@@ -324,12 +346,12 @@ function applyColumnTransformations(rowObject: any): any {
 }
 
 /**
- * Extract ALL 41 columns from row data for database storage.
+ * Extract ALL 45 columns from row data for database storage - V2 structure.
  * Maps Excel column names to database column names.
  *
- * CRITICAL: Uses renamed column names:
- * - "Filial" = filial (filial de roteirização)
- * - "Filial (origem)" = filial_origem (filial de onde a carga chegou)
+ * CRITICAL: V2 uses direct column names:
+ * - "Filial R" = filial_r (filial de roteirização)
+ * - "Filial D" = filial_d (filial de destino)
  */
 function extractTypedColumns(row: any) {
   return applyColumnTransformations(row);

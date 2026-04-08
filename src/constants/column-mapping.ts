@@ -1,5 +1,5 @@
 /**
- * Column Mapping Configuration
+ * Column Mapping Configuration - V2 Structure (45 columns)
  *
  * Maps Excel column names to database field names with transformation functions.
  * This provides a centralized, declarative way to handle all column transformations.
@@ -12,6 +12,10 @@ import {
   parseNumberBR,
   parseDecimal,
   parseTextSafe,
+  parseHorarioBR,
+  parseCarroDedicado,
+  parseRestricaoVeiculo,
+  parsePrioridade,
 } from '../utils/column-transformers';
 
 /**
@@ -25,9 +29,9 @@ export const COLUMN_TRANSFORMATION_MAP: Record<
   }
 > = {
   // ==================== INTEGER FIELDS ====================
-  'Filial': { field: 'filial', transform: parseIntegerSafe },
+  'Filial R': { field: 'filial_r', transform: parseIntegerSafe },
   'Romane': { field: 'romane', transform: parseIntegerSafe },
-  'Filial (origem)': { field: 'filial_origem', transform: parseIntegerSafe },
+  'Filial D': { field: 'filial_d', transform: parseIntegerSafe },
   'Série': { field: 'serie', transform: parseIntegerSafe },
   'Nro Doc.': { field: 'nro_doc', transform: parseIntegerSafe },
   'Qtd.': { field: 'qtd', transform: parseIntegerSafe },
@@ -45,100 +49,45 @@ export const COLUMN_TRANSFORMATION_MAP: Record<
   // ==================== DECIMAL NUMBER FIELDS ====================
   'Peso': { field: 'peso', transform: parseNumberBR },
   'Vlr.Merc.': { field: 'vlr_merc', transform: parseNumberBR },
-  'Peso C': { field: 'peso_c', transform: parseNumberBR },
+  'Peso Cub.': { field: 'peso_cubico', transform: parseNumberBR },
+  'Peso Calculo': { field: 'peso_calculo', transform: parseNumberBR },
 
   // ==================== COORDINATE FIELDS ====================
-  'Lat.': { field: 'lat', transform: parseDecimal },
-  'Lon.': { field: 'lon', transform: parseDecimal },
+  'Latitude': { field: 'latitude', transform: parseDecimal },
+  'Longitude': { field: 'longitude', transform: parseDecimal },
+
+  // ==================== TIME FIELDS (V2 NEW) ====================
+  'Inicio Ent.': { field: 'inicio_entrega', transform: parseHorarioBR },
+  'Fim En': { field: 'fim_entrega', transform: parseHorarioBR },
+
+  // ==================== ENUM FIELDS (V2 NEW) ====================
+  'Prioridade': { field: 'prioridade', transform: parsePrioridade },
+  'Restrição Veículo': { field: 'restricao_veiculo', transform: parseRestricaoVeiculo },
+
+  // ==================== BOOLEAN FIELDS (V2 NEW) ====================
+  'Carro Dedicado': { field: 'carro_dedicado', transform: parseCarroDedicado },
 
   // ==================== TEXT FIELDS ====================
-  'Conf': {
-    field: 'conf',
-    transform: (v: any) => (v === null || v === undefined || String(v).trim() === '' ? undefined : String(v))
-  },
-  'Classifi': {
-    field: 'classifi',
-    transform: (v: any) => (v === null || v === undefined || String(v).trim() === '' ? undefined : String(v))
-  },
-  'Tomador': {
-    field: 'tomador',
-    transform: (v: any) => (v === null || v === undefined || String(v).trim() === '' ? undefined : String(v))
-  },
-  'Destinatário': {
-    field: 'destinatario',
-    transform: (v: any) => (v === null || v === undefined || String(v).trim() === '' ? undefined : String(v))
-  },
-  'Bairro': {
-    field: 'bairro',
-    transform: (v: any) => (v === null || v === undefined || String(v).trim() === '' ? undefined : String(v))
-  },
-  'Cida': {
-    field: 'cida',
-    transform: (v: any) => (v === null || v === undefined || String(v).trim() === '' ? undefined : String(v))
-  },
-  'UF': {
-    field: 'uf',
-    transform: (v: any) => (v === null || v === undefined || String(v).trim() === '' ? undefined : String(v))
-  },
-  'NF / Serie': {
-    field: 'nf_serie',
-    transform: (v: any) => (v === null || v === undefined || String(v).trim() === '' ? undefined : String(v))
-  },
-  'Tipo Carga': {
-    field: 'tipo_carga',
-    transform: (v: any) => (v === null || v === undefined || String(v).trim() === '' ? undefined : String(v))
-  },
-  'Região': {
-    field: 'regiao',
-    transform: (v: any) => (v === null || v === undefined || String(v).trim() === '' ? undefined : String(v))
-  },
-  'Sub-Região': {
-    field: 'sub_regiao',
-    transform: (v: any) => (v === null || v === undefined || String(v).trim() === '' ? undefined : String(v))
-  },
-  'Ocorrências NFs': {
-    field: 'ocorrencias_nfs',
-    transform: (v: any) => (v === null || v === undefined || String(v).trim() === '' ? undefined : String(v)),
-  },
-  'Remetente': {
-    field: 'remetente',
-    transform: (v: any) => (v === null || v === undefined || String(v).trim() === '' ? undefined : String(v))
-  },
-  'Observação R': {
-    field: 'observacao_r',
-    transform: (v: any) => (v === null || v === undefined || String(v).trim() === '' ? undefined : String(v))
-  },
-  'Ref Cliente': {
-    field: 'ref_cliente',
-    transform: (v: any) => (v === null || v === undefined || String(v).trim() === '' ? undefined : String(v))
-  },
-  'Cidade Dest.': {
-    field: 'cidade_dest',
-    transform: (v: any) => (v === null || v === undefined || String(v).trim() === '' ? undefined : String(v))
-  },
-  'Mesoregião': {
-    field: 'mesoregiao',
-    transform: (v: any) => (v === null || v === undefined || String(v).trim() === '' ? undefined : String(v))
-  },
-  'Agenda': {
-    field: 'agenda',
-    transform: (v: any) => (v === null || v === undefined || String(v).trim() === '' ? undefined : String(v))
-  },
-  'Tipo C': {
-    field: 'tipo_c',
-    transform: (v: any) => (v === null || v === undefined || String(v).trim() === '' ? undefined : String(v))
-  },
-  'Última': {
-    field: 'ultima',
-    transform: (v: any) => (v === null || v === undefined || String(v).trim() === '' ? undefined : String(v))
-  },
-  'Status': {
-    field: 'status',
-    transform: (v: any) => (v === null || v === undefined || String(v).trim() === '' ? undefined : String(v))
-  },
-
-  // ==================== NEW COLUMNS (Sprint 4) ====================
-  'Veiculo Exclusivo': { field: 'veiculo_exclusivo', transform: parseTextSafe },
-  'Peso Calculado': { field: 'peso_calculado', transform: parseNumberBR },
-  'Prioridade': { field: 'prioridade', transform: parseIntegerSafe },
+  'Conf': { field: 'conf', transform: parseTextSafe },
+  'Classif': { field: 'classif', transform: parseTextSafe },
+  'Tomad': { field: 'tomad', transform: parseTextSafe },
+  'Destin': { field: 'destin', transform: parseTextSafe },
+  'Bairro': { field: 'bairro', transform: parseTextSafe },
+  'Cidad': { field: 'cidade', transform: parseTextSafe },
+  'UF': { field: 'uf', transform: parseTextSafe },
+  'NF / Serie': { field: 'nf_serie', transform: parseTextSafe },
+  'Tipo Carga': { field: 'tipo_carga', transform: parseTextSafe },
+  'Tipo Ca': { field: 'tipo_ca', transform: parseTextSafe },
+  'Sub-Região': { field: 'sub_regiao', transform: parseTextSafe },
+  'Ocorrências NF': { field: 'ocorrencias_nf', transform: parseTextSafe },
+  'Remetente': { field: 'remetente', transform: parseTextSafe },
+  'Observação': { field: 'observacao', transform: parseTextSafe },
+  'Ref Cliente': { field: 'ref_cliente', transform: parseTextSafe },
+  'Cidade Dest.': { field: 'cidade_dest', transform: parseTextSafe },
+  'Mesoregião': { field: 'mesoregiao', transform: parseTextSafe },
+  'Agenda': { field: 'agenda', transform: parseTextSafe },
+  'Última Ocorrência': { field: 'ultima_ocorrencia', transform: parseTextSafe },
+  'Status R': { field: 'status_r', transform: parseTextSafe },
+  'Endereço': { field: 'endereco', transform: parseTextSafe },
+  'Número': { field: 'numero', transform: parseTextSafe },
 };

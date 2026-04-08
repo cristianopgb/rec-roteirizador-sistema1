@@ -336,3 +336,124 @@ export function parseTextSafe(value: any): string | undefined {
 
   return strValue;
 }
+
+/**
+ * Parses Brazilian time format (HH:MM or H:MM) to ISO time format (HH:MM:SS)
+ * Handles: "08:00", "8:00", "14:30", "23:59"
+ * @param value - Raw time value from Excel (string or number)
+ * @returns ISO time string (HH:MM:SS) or null if invalid
+ */
+export function parseHorarioBR(value: any): string | null {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+
+  let strValue = String(value).trim();
+
+  // Case 1: Excel fractional time (0.5 = 12:00, 0.75 = 18:00)
+  if (typeof value === 'number' && value >= 0 && value < 1) {
+    const totalMinutes = Math.round(value * 24 * 60);
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+
+    if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+      console.warn(`parseHorarioBR: invalid time from number: ${value}`);
+      return null;
+    }
+
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
+  }
+
+  // Case 2: String format (HH:MM or H:MM)
+  const timeRegex = /^(\d{1,2}):(\d{2})$/;
+  const match = strValue.match(timeRegex);
+
+  if (!match) {
+    console.warn(`parseHorarioBR: invalid time format: "${strValue}"`);
+    return null;
+  }
+
+  const hours = parseInt(match[1], 10);
+  const minutes = parseInt(match[2], 10);
+
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+    console.warn(`parseHorarioBR: time out of range: ${hours}:${minutes}`);
+    return null;
+  }
+
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
+}
+
+/**
+ * Parses "Carro Dedicado" field to boolean
+ * Handles: "S", "N", "Sim", "Não", "SIM", "NAO", true, false, 1, 0
+ * @param value - Raw value from Excel
+ * @returns Boolean value
+ */
+export function parseCarroDedicado(value: any): boolean {
+  if (typeof value === 'boolean') return value;
+  if (value === null || value === undefined || value === '') return false;
+
+  const strValue = String(value).trim().toUpperCase();
+
+  return ['S', 'SIM', 'YES', 'Y', 'TRUE', '1'].includes(strValue);
+}
+
+/**
+ * Parses "Restrição Veículo" field to normalized enum value
+ * Handles: "TRUCK", "VUC", "CARRETA", "UTILITARIO", etc.
+ * @param value - Raw value from Excel
+ * @returns Normalized enum value or null if invalid
+ */
+export function parseRestricaoVeiculo(value: any): string | null {
+  if (!value || typeof value !== 'string') return null;
+
+  const normalized = value.trim().toUpperCase().replace(/[^A-Z]/g, '');
+
+  const validValues = ['TRUCK', 'VUC', 'CARRETA', 'UTILITARIO', 'TOCO', 'BITRUCK', 'QUALQUER'];
+
+  if (validValues.includes(normalized)) {
+    return normalized;
+  }
+
+  console.warn(`parseRestricaoVeiculo: invalid value: "${value}"`);
+  return null;
+}
+
+/**
+ * Parses "Prioridade" field to normalized enum value
+ * Handles: "ALTA", "MEDIA", "BAIXA", "URGENTE", "NORMAL", 1, 2, 3, etc.
+ * @param value - Raw value from Excel
+ * @returns Normalized enum value or null if invalid
+ */
+export function parsePrioridade(value: any): string | null {
+  if (!value) return null;
+
+  const strValue = String(value).trim().toUpperCase();
+
+  const mapping: Record<string, string> = {
+    'ALTA': 'ALTA',
+    'HIGH': 'ALTA',
+    '1': 'ALTA',
+    'MEDIA': 'MEDIA',
+    'MEDIUM': 'MEDIA',
+    'MÉDIA': 'MEDIA',
+    '2': 'MEDIA',
+    'BAIXA': 'BAIXA',
+    'LOW': 'BAIXA',
+    '3': 'BAIXA',
+    'URGENTE': 'URGENTE',
+    'URGENT': 'URGENTE',
+    '0': 'URGENTE',
+    'NORMAL': 'NORMAL',
+  };
+
+  const result = mapping[strValue];
+
+  if (!result) {
+    console.warn(`parsePrioridade: invalid value: "${value}"`);
+    return null;
+  }
+
+  return result;
+}

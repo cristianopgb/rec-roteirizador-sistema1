@@ -149,6 +149,38 @@ export interface PayloadMotorParametros {
   filtros_aplicados: Record<string, any>;
 }
 
+export interface CarteiraItemPayload {
+  filial_r?: number;
+  romane?: number;
+  filial_d?: number;
+  nro_doc?: number;
+  destinatario?: string;
+  cidade?: string;
+  uf?: string;
+  bairro?: string;
+  endereco?: string;
+  numero?: string;
+  latitude?: number;
+  longitude?: number;
+  peso?: number;
+  peso_cubico?: number;
+  vlr_merc?: number;
+  qtd?: number;
+  data_des?: string;
+  dle?: string;
+  agendam?: string;
+  mesoregiao?: string;
+  tipo_carga?: string;
+  tipo_ca?: string;
+  prioridade?: string;
+  restricao_veiculo?: string;
+  carro_dedicado?: boolean;
+  janela_entrega?: {
+    inicio: string | null;
+    fim: string | null;
+  };
+}
+
 export interface CarteiraItem {
   id: string;
   upload_id: string;
@@ -156,9 +188,9 @@ export interface CarteiraItem {
   status_validacao: 'valida' | 'invalida';
   erro_validacao?: string | null;
 
-  filial?: number | null;
+  filial_r?: number | null;
   romane?: number | null;
-  filial_origem?: number | null;
+  filial_d?: number | null;
   serie?: number | null;
   nro_doc?: number | null;
   data_des?: string | null;
@@ -170,33 +202,37 @@ export interface CarteiraItem {
   peso?: number | null;
   vlr_merc?: number | null;
   qtd?: number | null;
-  peso_c?: number | null;
-  classifi?: string | null;
-  tomador?: string | null;
-  destinatario?: string | null;
+  peso_cubico?: number | null;
+  classif?: string | null;
+  tomad?: string | null;
+  destin?: string | null;
   bairro?: string | null;
-  cida?: string | null;
+  cidade?: string | null;
   uf?: string | null;
   nf_serie?: string | null;
   tipo_carga?: string | null;
+  tipo_ca?: string | null;
   qtd_nf?: number | null;
-  regiao?: string | null;
   sub_regiao?: string | null;
-  ocorrencias_nfs?: string | null;
+  ocorrencias_nf?: string | null;
   remetente?: string | null;
-  observacao_r?: string | null;
+  observacao?: string | null;
   ref_cliente?: string | null;
   cidade_dest?: string | null;
   mesoregiao?: string | null;
   agenda?: string | null;
-  tipo_c?: string | null;
-  ultima?: string | null;
-  status?: string | null;
-  lat?: number | null;
-  lon?: number | null;
-  veiculo_exclusivo?: string | null;
-  peso_calculado?: number | null;
-  prioridade?: number | null;
+  ultima_ocorrencia?: string | null;
+  status_r?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  peso_calculo?: number | null;
+  prioridade?: string | null;
+  restricao_veiculo?: string | null;
+  carro_dedicado?: boolean | null;
+  inicio_entrega?: string | null;
+  fim_entrega?: string | null;
+  endereco?: string | null;
+  numero?: string | null;
 
   dados_originais?: Record<string, any>;
   created_at?: string;
@@ -204,11 +240,11 @@ export interface CarteiraItem {
 
 export interface CarteiraFilterValues {
   status_validacao?: 'valida' | 'invalida';
-  filial?: string | string[];
+  filial_r?: string | string[];
   uf?: string | string[];
-  destinatario?: string | string[];
-  cida?: string | string[];
-  tomador?: string | string[];
+  destin?: string | string[];
+  cidade?: string | string[];
+  tomad?: string | string[];
   mesoregiao?: string | string[];
   data_des_inicio?: string;
   data_des_fim?: string;
@@ -218,6 +254,9 @@ export interface CarteiraFilterValues {
   agendam_fim?: string;
   data_nf_inicio?: string;
   data_nf_fim?: string;
+  prioridade?: string | string[];
+  restricao_veiculo?: string | string[];
+  carro_dedicado?: boolean;
   tipo_roteirizacao?: TipoRoteirizacao;
   configuracao_frota?: ConfiguracaoFrota[];
 }
