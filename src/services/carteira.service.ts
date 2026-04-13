@@ -53,8 +53,9 @@ function normalizeHeaderName(name: unknown): string {
   // Só remove quando o padrão está NO FINAL e é claramente técnico
   normalized = normalized.replace(/\s*_\d+$/, "");
 
-  // trim de novo caso tenha sobrado espaço após remover o sufixo
-  normalized = normalized.trim();
+  // trimStart de novo caso tenha sobrado espaço à esquerda após remover o sufixo
+  // Não usar trim() pois removeria espaços finais legítimos (ex: "Filial ")
+  normalized = normalized.trimStart();
 
   return normalized;
 }
