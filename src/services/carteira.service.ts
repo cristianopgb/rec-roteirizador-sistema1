@@ -278,14 +278,34 @@ function extractTypedColumns(row: any) {
 }
 
 /**
+ * Scans the worksheet to find the header row by looking for "Filial R" in column A.
+ * Returns the 0-based row index of the header row, or -1 if not found.
+ */
+function findHeaderRowIndex(allRows: any[][]): number {
+  const MAX_SCAN_ROWS = 20;
+  for (let i = 0; i < Math.min(allRows.length, MAX_SCAN_ROWS); i++) {
+    const row = allRows[i];
+    if (!row) continue;
+    for (let c = 0; c < row.length; c++) {
+      const cell = row[c];
+      if (cell !== null && cell !== undefined && String(cell).trim() === 'Filial R') {
+        return i;
+      }
+    }
+  }
+  return -1;
+}
+
+/**
  * Process uploaded Excel file from raw REC export.
  * Handles automatic cleaning and validation of the official REC layout.
  *
  * Flow:
- * 1. Read raw Excel file starting from row 5 (L5)
- * 2. Remove empty columns (__EMPTY*)
- * 3. Validate exact sequence of 50 non-empty columns
- * 4. Process and persist data (NO renaming - columns stay as exported)
+ * 1. Read raw Excel file in full (array of arrays)
+ * 2. Scan rows to find header row dynamically by looking for "Filial R"
+ * 3. Remove empty columns (__EMPTY*)
+ * 4. Validate exact sequence of 43 non-empty columns
+ * 5. Process and persist data
  */
 export async function processCarteiraUpload(
   file: File,
@@ -306,27 +326,45 @@ export async function processCarteiraUpload(
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
 
-    // Convert to array of arrays (NOT object mode) starting from row 5 (header row)
-    const rawData = XLSX.utils.sheet_to_json(worksheet, {
-      header: 1, // Return arrays instead of objects
-      raw: true, // Keep raw cell values
-      defval: null, // Use null for empty cells
-      blankrows: false, // Skip blank rows
-      range: 4, // Start from row 5 (0-indexed, so row 5 = index 4)
+    // Read ALL rows from the beginning
+    const allRows = XLSX.utils.sheet_to_json(worksheet, {
+      header: 1,
+      raw: true,
+      defval: null,
+      blankrows: false,
     }) as any[][];
 
-    if (rawData.length === 0) {
+    if (allRows.length === 0) {
       return {
         success: false,
         total_linhas: 0,
         total_validas: 0,
         total_invalidas: 0,
-        error: 'Arquivo vazio ou sem dados a partir da linha 5',
+        error: 'Arquivo vazio',
       };
     }
 
     // ============================================================================
-    // STEP 2: Extract and process header row (first row of rawData)
+    // STEP 2: Find header row dynamically by scanning for "Filial R"
+    // ============================================================================
+    const headerRowIndex = findHeaderRowIndex(allRows);
+    if (headerRowIndex === -1) {
+      return {
+        success: false,
+        total_linhas: 0,
+        total_validas: 0,
+        total_invalidas: 0,
+        error: 'Cabeçalho com "Filial R" não encontrado nas primeiras 20 linhas do arquivo',
+      };
+    }
+
+    console.log('[DEBUG] Header encontrado na linha:', headerRowIndex + 1, '(1-based)');
+
+    // Extract header row and data rows from the detected position
+    const rawData = allRows.slice(headerRowIndex);
+
+    // ============================================================================
+    // STEP 3: Extract and process header row
     // ============================================================================
     const rawHeaderRow = rawData[0];
     if (!rawHeaderRow || rawHeaderRow.length === 0) {
@@ -339,10 +377,10 @@ export async function processCarteiraUpload(
       };
     }
 
-    console.log('[DEBUG] 1. Headers brutos originais (total:', rawHeaderRow.length, ')');
+    console.log('[DEBUG] 1. Headers brutos originais na linha detectada (total:', rawHeaderRow.length, ')');
 
     // ============================================================================
-    // STEP 3: Remove invalid columns by index and build valid column mapping
+    // STEP 4: Remove invalid columns by index and build valid column mapping
     // ============================================================================
     const validColumnIndices: number[] = [];
     const rawHeaders: string[] = [];
@@ -358,19 +396,15 @@ export async function processCarteiraUpload(
     console.log('[DEBUG] 3. Headers após remoção de colunas vazias:', rawHeaders.length, rawHeaders);
 
     // ============================================================================
-    // STEP 4: Normalize header names
+    // STEP 5: Normalize header names
     // ============================================================================
     const normalizedHeaders = rawHeaders.map(h => normalizeHeaderName(h));
-    console.log('[DEBUG] 4. Headers após normalização:', normalizedHeaders.length, normalizedHeaders);
+    console.log('[DEBUG] 5. Headers após normalização:', normalizedHeaders.length, normalizedHeaders);
 
-    // ============================================================================
-    // STEP 5: Rename the 2nd "Filial" to "Filial (origem)"
-    // ============================================================================
     const renamedHeaders = renomearFilialOrigem(normalizedHeaders);
-    console.log('[DEBUG] 5. Headers finais após renomeação:', renamedHeaders.length, renamedHeaders);
 
     // ============================================================================
-    // STEP 6: Validate exact sequence of 50 non-empty columns
+    // STEP 6: Validate exact sequence of 43 non-empty columns
     // ============================================================================
     const structureValidation = validarOrdemExataBruta(renamedHeaders);
     if (!structureValidation.valid) {
@@ -409,64 +443,30 @@ export async function processCarteiraUpload(
     for (const rawRow of dataRows) {
       const rowObject: any = {};
 
-      // Map each valid column by index
-      // Special handling for duplicate "Data" column names
-      let dataColumnCount = 0;
+      // Map each valid column by index using the normalized header name
       validColumnIndices.forEach((colIndex, mappingIndex) => {
-        let headerName = renamedHeaders[mappingIndex];
+        const headerName = renamedHeaders[mappingIndex];
         const cellValue = rawRow[colIndex];
-
-        // Handle duplicate "Data" columns by renaming internally
-        if (headerName === 'Data') {
-          dataColumnCount++;
-          if (dataColumnCount === 1) {
-            headerName = 'Data_Des_Internal'; // First "Data" = Data Des
-          } else if (dataColumnCount === 2) {
-            headerName = 'Data_NF_Internal'; // Second "Data" = Data NF
-          }
-        }
-
         rowObject[headerName] = cellValue;
       });
 
-      // FORENSIC ANALYSIS: For ROMANE 564, log raw array structure
-      if (String(rowObject['Romane']).trim() === '564') {
-        console.log('\n[DEBUG] ========== ROMANE 564 - ARRAY BRUTO COMPLETO ==========');
+      // FORENSIC ANALYSIS: For ROMANEI 564, log raw array structure
+      if (String(rowObject['Romanei']).trim() === '564') {
+        console.log('\n[DEBUG] ========== ROMANEI 564 - ARRAY BRUTO COMPLETO ==========');
         console.log('[DEBUG] Array length:', rawRow.length);
-        console.log('[DEBUG] Array completo:');
-        rawRow.forEach((val, idx) => {
-          console.log(`  Índice ${idx}: ${JSON.stringify(val)} (tipo: ${typeof val})`);
-        });
-
-        console.log('\n[DEBUG] ========== MAPEAMENTO DE ÍNDICES ==========');
         console.log('[DEBUG] validColumnIndices:', validColumnIndices);
         console.log('[DEBUG] renamedHeaders:', renamedHeaders);
 
-        // Find indices for critical columns
-        const dataDes_idx = renamedHeaders.indexOf('Data Des');
-        const dataNF_idx = renamedHeaders.indexOf('Data NF');
+        const dataD_idx = renamedHeaders.indexOf('Data D');
+        const dataN_idx = renamedHeaders.indexOf('Data N');
         const dle_idx = renamedHeaders.indexOf('D.L.E.');
         const agendam_idx = renamedHeaders.indexOf('Agendam.');
 
         console.log('\n[DEBUG] Mapeamento de colunas críticas:');
-        console.log(`  Data Des    → Índice no header: ${dataDes_idx}  | Índice físico no array: ${validColumnIndices[dataDes_idx]}  | Valor: ${JSON.stringify(rawRow[validColumnIndices[dataDes_idx]])}`);
-        console.log(`  Data NF     → Índice no header: ${dataNF_idx}  | Índice físico no array: ${validColumnIndices[dataNF_idx]}  | Valor: ${JSON.stringify(rawRow[validColumnIndices[dataNF_idx]])}`);
-        console.log(`  D.L.E.      → Índice no header: ${dle_idx}  | Índice físico no array: ${validColumnIndices[dle_idx]}  | Valor: ${JSON.stringify(rawRow[validColumnIndices[dle_idx]])}`);
-        console.log(`  Agendam.    → Índice no header: ${agendam_idx}  | Índice físico no array: ${validColumnIndices[agendam_idx]}  | Valor: ${JSON.stringify(rawRow[validColumnIndices[agendam_idx]])}`);
-
-        // Check neighbors for D.L.E.
-        const dle_physical_idx = validColumnIndices[dle_idx];
-        console.log('\n[DEBUG] ========== VARREDURA DE VIZINHOS D.L.E. ==========');
-        console.log(`  Índice ${dle_physical_idx - 1} (anterior): ${JSON.stringify(rawRow[dle_physical_idx - 1])} (tipo: ${typeof rawRow[dle_physical_idx - 1]})`);
-        console.log(`  Índice ${dle_physical_idx} (esperado): ${JSON.stringify(rawRow[dle_physical_idx])} (tipo: ${typeof rawRow[dle_physical_idx]})`);
-        console.log(`  Índice ${dle_physical_idx + 1} (posterior): ${JSON.stringify(rawRow[dle_physical_idx + 1])} (tipo: ${typeof rawRow[dle_physical_idx + 1]})`);
-
-        // Check neighbors for Agendam.
-        const agendam_physical_idx = validColumnIndices[agendam_idx];
-        console.log('\n[DEBUG] ========== VARREDURA DE VIZINHOS AGENDAM. ==========');
-        console.log(`  Índice ${agendam_physical_idx - 1} (anterior): ${JSON.stringify(rawRow[agendam_physical_idx - 1])} (tipo: ${typeof rawRow[agendam_physical_idx - 1]})`);
-        console.log(`  Índice ${agendam_physical_idx} (esperado): ${JSON.stringify(rawRow[agendam_physical_idx])} (tipo: ${typeof rawRow[agendam_physical_idx]})`);
-        console.log(`  Índice ${agendam_physical_idx + 1} (posterior): ${JSON.stringify(rawRow[agendam_physical_idx + 1])} (tipo: ${typeof rawRow[agendam_physical_idx + 1]})`);
+        console.log(`  Data D   → pos: ${dataD_idx} | físico: ${validColumnIndices[dataD_idx]} | valor: ${JSON.stringify(rawRow[validColumnIndices[dataD_idx]])}`);
+        console.log(`  Data N   → pos: ${dataN_idx} | físico: ${validColumnIndices[dataN_idx]} | valor: ${JSON.stringify(rawRow[validColumnIndices[dataN_idx]])}`);
+        console.log(`  D.L.E.   → pos: ${dle_idx} | físico: ${validColumnIndices[dle_idx]} | valor: ${JSON.stringify(rawRow[validColumnIndices[dle_idx]])}`);
+        console.log(`  Agendam. → pos: ${agendam_idx} | físico: ${validColumnIndices[agendam_idx]} | valor: ${JSON.stringify(rawRow[validColumnIndices[agendam_idx]])}`);
       }
 
       jsonData.push(rowObject);
@@ -500,11 +500,11 @@ export async function processCarteiraUpload(
     for (let i = 0; i < jsonData.length; i++) {
       const row = jsonData[i];
 
-      // Log raw values for ROMANE 564
-      if (String(row['Romane']).trim() === '564') {
-        console.log('\n========== ROMANE 564 - VALORES BRUTOS ==========');
-        console.log('BRUTO | Filial:', row['Filial'], '(tipo:', typeof row['Filial'], ')');
-        console.log('BRUTO | Romane:', row['Romane'], '(tipo:', typeof row['Romane'], ')');
+      // Log raw values for ROMANEI 564
+      if (String(row['Romanei']).trim() === '564') {
+        console.log('\n========== ROMANEI 564 - VALORES BRUTOS ==========');
+        console.log('BRUTO | Filial R:', row['Filial R'], '(tipo:', typeof row['Filial R'], ')');
+        console.log('BRUTO | Romanei:', row['Romanei'], '(tipo:', typeof row['Romanei'], ')');
         console.log('BRUTO | D.L.E.:', row['D.L.E.'], '(tipo:', typeof row['D.L.E.'], ')');
         console.log('BRUTO | Agendam.:', row['Agendam.'], '(tipo:', typeof row['Agendam.'], ')');
         console.log('BRUTO | Peso:', row['Peso'], '(tipo:', typeof row['Peso'], ')');
@@ -514,10 +514,10 @@ export async function processCarteiraUpload(
       const validation = validateCarteiraRow(row);
       const typedColumns = extractTypedColumns(row);
 
-      // Log transformed values for ROMANE 564
-      if (String(row['Romane']).trim() === '564') {
-        console.log('\n========== ROMANE 564 - VALORES TRANSFORMADOS ==========');
-        console.log('TRANSFORMADO | filial:', typedColumns.filial, '(tipo:', typeof typedColumns.filial, ')');
+      // Log transformed values for ROMANEI 564
+      if (String(row['Romanei']).trim() === '564') {
+        console.log('\n========== ROMANEI 564 - VALORES TRANSFORMADOS ==========');
+        console.log('TRANSFORMADO | filial_r:', typedColumns.filial_r, '(tipo:', typeof typedColumns.filial_r, ')');
         console.log('TRANSFORMADO | romane:', typedColumns.romane, '(tipo:', typeof typedColumns.romane, ')');
         console.log('TRANSFORMADO | dle:', typedColumns.dle);
         console.log('TRANSFORMADO | agendam:', typedColumns.agendam);
@@ -543,7 +543,7 @@ export async function processCarteiraUpload(
     // Log specific romane 564 before insert
     const romane564 = items.find(item => String(item.romane).trim() === '564');
     if (romane564) {
-      console.log('\n[DEBUG] ========== ROMANE 564 - DADOS ANTES DO INSERT ==========');
+      console.log('\n[DEBUG] ========== ROMANEI 564 - DADOS ANTES DO INSERT ==========');
       console.log('[DEBUG] linha_numero:', romane564.linha_numero);
       console.log('[DEBUG] Datas:');
       console.log('  - data_des:', romane564.data_des);
@@ -553,10 +553,10 @@ export async function processCarteiraUpload(
       console.log('[DEBUG] Números:');
       console.log('  - peso:', romane564.peso);
       console.log('  - vlr_merc:', romane564.vlr_merc);
-      console.log('  - peso_c:', romane564.peso_c);
+      console.log('  - peso_cubico:', romane564.peso_cubico);
       console.log('[DEBUG] Coordenadas:');
-      console.log('  - lat:', romane564.lat);
-      console.log('  - lon:', romane564.lon);
+      console.log('  - latitude:', romane564.latitude);
+      console.log('  - longitude:', romane564.longitude);
     }
 
     // Insert items in batches
@@ -579,9 +579,9 @@ export async function processCarteiraUpload(
       for (const item of batch) {
         // Validate integer fields
         const integerFields = [
-          { name: 'filial', value: item.filial },
+          { name: 'filial_r', value: item.filial_r },
           { name: 'romane', value: item.romane },
-          { name: 'filial_origem', value: item.filial_origem },
+          { name: 'filial_d', value: item.filial_d },
           { name: 'serie', value: item.serie },
           { name: 'nro_doc', value: item.nro_doc },
           { name: 'qtd', value: item.qtd },
@@ -657,14 +657,14 @@ export async function processCarteiraUpload(
     if (romane564 && String(romane564.romane).trim() === '564') {
       const { data: savedRomane564, error: queryError } = await supabase
         .from('carteira_itens')
-        .select('filial, romane, dle, agendam, peso, qtd')
+        .select('filial_r, romane, dle, agendam, peso, qtd')
         .eq('romane', 564)
         .eq('upload_id', upload.id)
         .maybeSingle();
 
       if (!queryError && savedRomane564) {
-        console.log('\n========== ROMANE 564 - VALORES SALVOS ==========');
-        console.log('SALVO | filial:', savedRomane564.filial);
+        console.log('\n========== ROMANEI 564 - VALORES SALVOS ==========');
+        console.log('SALVO | filial_r:', savedRomane564.filial_r);
         console.log('SALVO | romane:', savedRomane564.romane);
         console.log('SALVO | dle:', savedRomane564.dle);
         console.log('SALVO | agendam:', savedRomane564.agendam);
@@ -997,13 +997,13 @@ export async function montarPayloadRoteirizacao(
 
     // Reconstruct Excel format from database columns
     const carteira = carteiraItems?.map((item) => ({
-      'Filial': item.filial ?? '',
-      'Romane': item.romane ?? '',
-      'Filial (origem)': item.filial_origem ?? '',
-      'Série': item.serie ?? '',
-      'Nro Doc.': item.nro_doc ?? '',
-      'Data Des': item.data_des ?? '',
-      'Data NF': item.data_nf ?? '',
+      'Filial R': item.filial_r ?? '',
+      'Romanei': item.romane ?? '',
+      'Filial ': item.filial_d ?? '',
+      'Série D': item.serie ?? '',
+      'Nro Do': item.nro_doc ?? '',
+      'Data D': item.data_des ?? '',
+      'Data N': item.data_nf ?? '',
       'D.L.E.': item.dle ?? '',
       'Agendam.': item.agendam ?? '',
       'Palet': item.palet ?? '',
@@ -1011,33 +1011,35 @@ export async function montarPayloadRoteirizacao(
       'Peso': item.peso ?? 0,
       'Vlr.Merc.': item.vlr_merc ?? 0,
       'Qtd.': item.qtd ?? 0,
-      'Peso C': item.peso_c ?? 0,
-      'Classifi': item.classifi ?? '',
-      'Tomador': item.tomador ?? '',
-      'Destinatário': item.destinatario ?? '',
+      'Peso Cub': item.peso_cubico ?? 0,
+      'Classifica': item.classif ?? '',
+      'Tomad': item.tomad ?? '',
+      'Destina': item.destin ?? '',
       'Bairro': item.bairro ?? '',
-      'Cida': item.cida ?? '',
+      'Cida': item.cidade ?? '',
       'UF': item.uf ?? '',
-      'NF / Serie': item.nf_serie ?? '',
-      'Tipo Carga': item.tipo_carga ?? '',
+      'NF/Ser': item.nf_serie ?? '',
+      'Tipo Carg': item.tipo_ca ?? '',
       'Qtd.NF': item.qtd_nf ?? 0,
-      'Região': item.regiao ?? '',
+      'Mesoregião': item.mesoregiao ?? '',
       'Sub-Região': item.sub_regiao ?? '',
-      'Ocorrências NFs': item.ocorrencias_nfs ?? '',
+      'Ocorrências N': item.ocorrencias_nf ?? '',
       'Remetente': item.remetente ?? '',
-      'Observação R': item.observacao_r ?? '',
+      'Observação R': item.observacao ?? '',
       'Ref Cliente': item.ref_cliente ?? '',
       'Cidade Dest.': item.cidade_dest ?? '',
-      'Mesoregião': item.mesoregiao ?? '',
       'Agenda': item.agenda ?? '',
-      'Tipo C': item.tipo_c ?? '',
-      'Última': item.ultima ?? '',
-      'Status': item.status ?? '',
-      'Lat.': item.lat ?? 0,
-      'Lon.': item.lon ?? 0,
-      'Veiculo Exclusivo': item.veiculo_exclusivo ?? null,
-      'Peso Calculado': item.peso_calculado ?? null,
+      'Tipo Carga': item.tipo_carga ?? '',
+      'Última Ocorrê': item.ultima_ocorrencia ?? '',
+      'Status Rom. O': item.status_r ?? '',
+      'Latitude': item.latitude ?? 0,
+      'Longitude': item.longitude ?? 0,
+      'Peso Calculo': item.peso_calculo ?? 0,
       'Prioridade': item.prioridade ?? null,
+      'Restrição Veíc': item.restricao_veiculo ?? null,
+      'Carro Dedicado': item.carro_dedicado ?? null,
+      'Inicio Ent.': item.inicio_entrega ?? null,
+      'Fim En': item.fim_entrega ?? null,
     })) || [];
 
     const payload = {

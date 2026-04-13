@@ -2,18 +2,17 @@
  * RAW column names EXACTLY as exported by REC ERP - VERSION 2.
  * This is the sequence of non-empty columns after removing __EMPTY columns.
  *
- * CRITICAL: Layout baseado no arquivo real amostra.xlsx fornecido pelo cliente
- * - Has TWO "Data" columns (both named "Data" in export)
+ * CRITICAL: Layout baseado no arquivo real fornecido pelo cliente.
  * - Total: 43 columns in EXACT order AS RECEIVED FROM CLIENT
  */
 export const COLUNAS_BRUTAS_REC = [
   'Filial R',           // 1
-  'Romane',             // 2
-  'Filial D',           // 3
-  'Série',              // 4
-  'Nro Doc.',           // 5
-  'Data',               // 6 - First occurrence
-  'Data',               // 7 - Second occurrence (DUPLICATE NAME!)
+  'Romanei',            // 2
+  'Filial ',            // 3
+  'Série D',            // 4
+  'Nro Do',             // 5
+  'Data D',             // 6
+  'Data N',             // 7
   'D.L.E.',             // 8
   'Agendam.',           // 9
   'Palet',              // 10
@@ -21,32 +20,32 @@ export const COLUNAS_BRUTAS_REC = [
   'Peso',               // 12
   'Vlr.Merc.',          // 13
   'Qtd.',               // 14
-  'Peso Cub.',          // 15
-  'Classif',            // 16
+  'Peso Cub',           // 15
+  'Classifica',         // 16
   'Tomad',              // 17
-  'Destin',             // 18
+  'Destina',            // 18
   'Bairro',             // 19
-  'Cidad',              // 20
+  'Cida',               // 20
   'UF',                 // 21
-  'NF / Serie',         // 22
-  'Tipo Ca',            // 23
+  'NF/Ser',             // 22
+  'Tipo Carg',          // 23
   'Qtd.NF',             // 24
   'Mesoregião',         // 25
   'Sub-Região',         // 26
-  'Ocorrências NF',     // 27
+  'Ocorrências N',      // 27
   'Remetente',          // 28
-  'Observação',         // 29
+  'Observação R',       // 29
   'Ref Cliente',        // 30
   'Cidade Dest.',       // 31
   'Agenda',             // 32
   'Tipo Carga',         // 33
-  'Última Ocorrência',  // 34
-  'Status R',           // 35
+  'Última Ocorrê',      // 34
+  'Status Rom. O',      // 35
   'Latitude',           // 36
   'Longitude',          // 37
   'Peso Calculo',       // 38
   'Prioridade',         // 39
-  'Restrição Veículo',  // 40
+  'Restrição Veíc',     // 40
   'Carro Dedicado',     // 41
   'Inicio Ent.',        // 42
   'Fim En',             // 43
@@ -61,18 +60,17 @@ export const COLUNAS_BRUTAS_REC = [
  * - Space sensitive
  * - Accent sensitive
  * - No normalization allowed
- * - Includes DUPLICATE "Data" column names (positions 6 and 7)
  *
  * Total: 43 required columns
  */
 export const COLUNAS_OBRIGATORIAS_EXCEL = [
   'Filial R',
-  'Romane',
-  'Filial D',
-  'Série',
-  'Nro Doc.',
-  'Data',
-  'Data',
+  'Romanei',
+  'Filial ',
+  'Série D',
+  'Nro Do',
+  'Data D',
+  'Data N',
   'D.L.E.',
   'Agendam.',
   'Palet',
@@ -80,32 +78,32 @@ export const COLUNAS_OBRIGATORIAS_EXCEL = [
   'Peso',
   'Vlr.Merc.',
   'Qtd.',
-  'Peso Cub.',
-  'Classif',
+  'Peso Cub',
+  'Classifica',
   'Tomad',
-  'Destin',
+  'Destina',
   'Bairro',
-  'Cidad',
+  'Cida',
   'UF',
-  'NF / Serie',
-  'Tipo Ca',
+  'NF/Ser',
+  'Tipo Carg',
   'Qtd.NF',
   'Mesoregião',
   'Sub-Região',
-  'Ocorrências NF',
+  'Ocorrências N',
   'Remetente',
-  'Observação',
+  'Observação R',
   'Ref Cliente',
   'Cidade Dest.',
   'Agenda',
   'Tipo Carga',
-  'Última Ocorrência',
-  'Status R',
+  'Última Ocorrê',
+  'Status Rom. O',
   'Latitude',
   'Longitude',
   'Peso Calculo',
   'Prioridade',
-  'Restrição Veículo',
+  'Restrição Veíc',
   'Carro Dedicado',
   'Inicio Ent.',
   'Fim En',
@@ -113,17 +111,15 @@ export const COLUNAS_OBRIGATORIAS_EXCEL = [
 
 /**
  * Mapping from exact Excel column names (V2) to database-safe column names.
- * Used for extracting data from JSONB to typed columns.
- *
- * NOTE: "Data" column maps to BOTH data_des and data_nf (same value for pipeline)
  */
 export const EXCEL_TO_DB_MAP: Record<string, string> = {
   'Filial R': 'filial_r',
-  'Filial D': 'filial_d',
-  'Romane': 'romane',
-  'Série': 'serie',
-  'Nro Doc.': 'nro_doc',
-  'Data': 'data',
+  'Romanei': 'romane',
+  'Filial ': 'filial_d',
+  'Série D': 'serie',
+  'Nro Do': 'nro_doc',
+  'Data D': 'data_des',
+  'Data N': 'data_nf',
   'D.L.E.': 'dle',
   'Agendam.': 'agendam',
   'Palet': 'palet',
@@ -131,32 +127,32 @@ export const EXCEL_TO_DB_MAP: Record<string, string> = {
   'Peso': 'peso',
   'Vlr.Merc.': 'vlr_merc',
   'Qtd.': 'qtd',
-  'Peso Cub.': 'peso_cubico',
-  'Classif': 'classif',
-  'Tomad': 'tomador',
-  'Destin': 'destinatario',
+  'Peso Cub': 'peso_cubico',
+  'Classifica': 'classif',
+  'Tomad': 'tomad',
+  'Destina': 'destin',
   'Bairro': 'bairro',
-  'Cidad': 'cidade',
+  'Cida': 'cidade',
   'UF': 'uf',
-  'NF / Serie': 'nf_serie',
-  'Tipo Ca': 'tipo_ca',
+  'NF/Ser': 'nf_serie',
+  'Tipo Carg': 'tipo_ca',
   'Qtd.NF': 'qtd_nf',
   'Mesoregião': 'mesoregiao',
   'Sub-Região': 'sub_regiao',
-  'Ocorrências NF': 'ocorrencias_nf',
+  'Ocorrências N': 'ocorrencias_nf',
   'Remetente': 'remetente',
-  'Observação': 'observacao',
+  'Observação R': 'observacao',
   'Ref Cliente': 'ref_cliente',
   'Cidade Dest.': 'cidade_dest',
   'Agenda': 'agenda',
   'Tipo Carga': 'tipo_carga',
-  'Última Ocorrência': 'ultima_ocorrencia',
-  'Status R': 'status_r',
+  'Última Ocorrê': 'ultima_ocorrencia',
+  'Status Rom. O': 'status_r',
   'Latitude': 'latitude',
   'Longitude': 'longitude',
   'Peso Calculo': 'peso_calculo',
   'Prioridade': 'prioridade',
-  'Restrição Veículo': 'restricao_veiculo',
+  'Restrição Veíc': 'restricao_veiculo',
   'Carro Dedicado': 'carro_dedicado',
   'Inicio Ent.': 'inicio_entrega',
   'Fim En': 'fim_entrega',
@@ -165,19 +161,15 @@ export const EXCEL_TO_DB_MAP: Record<string, string> = {
 /**
  * Type representing a single row from the carteira Excel file - VERSION 2.
  * All fields from the 43-column structure.
- *
- * NOTE: Excel has two "Data" columns with the same name. We rename them internally:
- * - First "Data" becomes "Data_Des_Internal"
- * - Second "Data" becomes "Data_NF_Internal"
  */
 export type CarteiraExcelRow = Partial<Record<string, any>> & {
   'Filial R': string;
-  'Romane': string;
-  'Filial D': string;
-  'Série': string;
-  'Nro Doc.': string;
-  'Data_Des_Internal': string;
-  'Data_NF_Internal': string;
+  'Romanei': string;
+  'Filial ': string;
+  'Série D': string;
+  'Nro Do': string;
+  'Data D': string;
+  'Data N': string;
   'D.L.E.': string;
   'Agendam.': string;
   'Palet': string;
@@ -185,32 +177,32 @@ export type CarteiraExcelRow = Partial<Record<string, any>> & {
   'Peso': string | number;
   'Vlr.Merc.': string | number;
   'Qtd.': string | number;
-  'Peso Cub.': string | number;
-  'Classif': string;
+  'Peso Cub': string | number;
+  'Classifica': string;
   'Tomad': string;
-  'Destin': string;
+  'Destina': string;
   'Bairro': string;
-  'Cidad': string;
+  'Cida': string;
   'UF': string;
-  'NF / Serie': string;
-  'Tipo Ca': string;
+  'NF/Ser': string;
+  'Tipo Carg': string;
   'Qtd.NF': string | number;
   'Mesoregião': string;
   'Sub-Região': string;
-  'Ocorrências NF': string;
+  'Ocorrências N': string;
   'Remetente': string;
-  'Observação': string;
+  'Observação R': string;
   'Ref Cliente': string;
   'Cidade Dest.': string;
   'Agenda': string;
   'Tipo Carga': string;
-  'Última Ocorrência': string;
-  'Status R': string;
+  'Última Ocorrê': string;
+  'Status Rom. O': string;
   'Latitude': string | number;
   'Longitude': string | number;
   'Peso Calculo': string | number;
   'Prioridade': string | number;
-  'Restrição Veículo': string;
+  'Restrição Veíc': string;
   'Carro Dedicado': string | boolean;
   'Inicio Ent.': string;
   'Fim En': string;

@@ -3,8 +3,6 @@
  *
  * Maps Excel column names to database field names with transformation functions.
  * This provides a centralized, declarative way to handle all column transformations.
- *
- * IMPORTANT: "Data" column is transformed into BOTH data_des and data_nf (same value)
  */
 
 import {
@@ -33,18 +31,17 @@ export const COLUMN_TRANSFORMATION_MAP: Record<
 > = {
   // ==================== INTEGER FIELDS ====================
   'Filial R': { field: 'filial_r', transform: parseIntegerSafe },
-  'Romane': { field: 'romane', transform: parseIntegerSafe },
-  'Filial D': { field: 'filial_d', transform: parseIntegerSafe },
-  'Série': { field: 'serie', transform: parseIntegerSafe },
-  'Nro Doc.': { field: 'nro_doc', transform: parseIntegerSafe },
+  'Romanei': { field: 'romane', transform: parseIntegerSafe },
+  'Filial ': { field: 'filial_d', transform: parseIntegerSafe },
+  'Série D': { field: 'serie', transform: parseIntegerSafe },
+  'Nro Do': { field: 'nro_doc', transform: parseIntegerSafe },
   'Qtd.': { field: 'qtd', transform: parseIntegerSafe },
   'Qtd.NF': { field: 'qtd_nf', transform: parseIntegerSafe },
   'Palet': { field: 'palet', transform: parseIntegerSafe },
 
   // ==================== DATE FIELDS ====================
-  // NOTE: Excel has TWO "Data" columns with same name - we rename them internally
-  'Data_Des_Internal': { field: 'data_des', transform: parseDateBR },
-  'Data_NF_Internal': { field: 'data_nf', transform: parseDateBR },
+  'Data D': { field: 'data_des', transform: parseDateBR },
+  'Data N': { field: 'data_nf', transform: parseDateBR },
   'D.L.E.': { field: 'dle', transform: parseDateBR },
 
   // ==================== TIMESTAMP FIELD ====================
@@ -53,7 +50,7 @@ export const COLUMN_TRANSFORMATION_MAP: Record<
   // ==================== DECIMAL NUMBER FIELDS ====================
   'Peso': { field: 'peso', transform: parseNumberBR },
   'Vlr.Merc.': { field: 'vlr_merc', transform: parseNumberBR },
-  'Peso Cub.': { field: 'peso_cubico', transform: parseNumberBR },
+  'Peso Cub': { field: 'peso_cubico', transform: parseNumberBR },
   'Peso Calculo': { field: 'peso_calculo', transform: parseNumberBR },
 
   // ==================== COORDINATE FIELDS ====================
@@ -66,30 +63,30 @@ export const COLUMN_TRANSFORMATION_MAP: Record<
 
   // ==================== ENUM FIELDS (V2 NEW) ====================
   'Prioridade': { field: 'prioridade', transform: parsePrioridade },
-  'Restrição Veículo': { field: 'restricao_veiculo', transform: parseRestricaoVeiculo },
+  'Restrição Veíc': { field: 'restricao_veiculo', transform: parseRestricaoVeiculo },
 
   // ==================== BOOLEAN FIELDS (V2 NEW) ====================
   'Carro Dedicado': { field: 'carro_dedicado', transform: parseCarroDedicado },
 
   // ==================== TEXT FIELDS ====================
   'Conf': { field: 'conf', transform: parseTextSafe },
-  'Classif': { field: 'classif', transform: parseTextSafe },
+  'Classifica': { field: 'classif', transform: parseTextSafe },
   'Tomad': { field: 'tomad', transform: parseTextSafe },
-  'Destin': { field: 'destin', transform: parseTextSafe },
+  'Destina': { field: 'destin', transform: parseTextSafe },
   'Bairro': { field: 'bairro', transform: parseTextSafe },
-  'Cidad': { field: 'cidade', transform: parseTextSafe },
+  'Cida': { field: 'cidade', transform: parseTextSafe },
   'UF': { field: 'uf', transform: parseTextSafe },
-  'NF / Serie': { field: 'nf_serie', transform: parseTextSafe },
   'Tipo Carga': { field: 'tipo_carga', transform: parseTextSafe },
-  'Tipo Ca': { field: 'tipo_ca', transform: parseTextSafe },
+  'Tipo Carg': { field: 'tipo_ca', transform: parseTextSafe },
+  'NF/Ser': { field: 'nf_serie', transform: parseTextSafe },
   'Sub-Região': { field: 'sub_regiao', transform: parseTextSafe },
-  'Ocorrências NF': { field: 'ocorrencias_nf', transform: parseTextSafe },
+  'Ocorrências N': { field: 'ocorrencias_nf', transform: parseTextSafe },
   'Remetente': { field: 'remetente', transform: parseTextSafe },
-  'Observação': { field: 'observacao', transform: parseTextSafe },
+  'Observação R': { field: 'observacao', transform: parseTextSafe },
   'Ref Cliente': { field: 'ref_cliente', transform: parseTextSafe },
   'Cidade Dest.': { field: 'cidade_dest', transform: parseTextSafe },
   'Mesoregião': { field: 'mesoregiao', transform: parseTextSafe },
   'Agenda': { field: 'agenda', transform: parseTextSafe },
-  'Última Ocorrência': { field: 'ultima_ocorrencia', transform: parseTextSafe },
-  'Status R': { field: 'status_r', transform: parseTextSafe },
+  'Última Ocorrê': { field: 'ultima_ocorrencia', transform: parseTextSafe },
+  'Status Rom. O': { field: 'status_r', transform: parseTextSafe },
 };
