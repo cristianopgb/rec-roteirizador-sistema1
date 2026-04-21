@@ -14,14 +14,14 @@ import { parseNumberBR } from '../utils/column-transformers';
 /**
  * Normalizes a header name by:
  * - Converting null/undefined to empty string
- * - Trimming whitespace from edges
+ * - Trimming leading whitespace only (preserves trailing spaces that are part of official column names, e.g. "Filial ")
  * - Collapsing multiple internal spaces into one
  * - Removing technical suffixes (_1, _2, etc.) added by libraries for duplicate columns
  *
  * Examples:
- * - "Filial " → "Filial"
- * - "Série " → "Série"
- * - "Filial _1" → "Filial"
+ * - "  Filial R" → "Filial R"
+ * - "Filial " → "Filial "  (trailing space preserved -- official REC column name)
+ * - "Filial _1" → "Filial "
  * - "Filial_1" → "Filial"
  * - "Nro Doc. " → "Nro Doc."
  */
@@ -34,8 +34,8 @@ function normalizeHeaderName(name: unknown): string {
   // força string
   let normalized = String(name);
 
-  // trim nas pontas
-  normalized = normalized.trim();
+  // remove apenas espaços no início -- trailing spaces são parte de nomes oficiais (ex: "Filial ")
+  normalized = normalized.trimStart();
 
   // se ficou vazio depois do trim
   if (!normalized) {
@@ -283,7 +283,7 @@ function extractTypedColumns(row: any) {
  * Returns the 0-based row index of the header row, or -1 if not found.
  */
 function findHeaderRowIndex(allRows: any[][]): number {
-  const MAX_SCAN_ROWS = 20;
+  const MAX_SCAN_ROWS = 50;
   for (let i = 0; i < Math.min(allRows.length, MAX_SCAN_ROWS); i++) {
     const row = allRows[i];
     if (!row) continue;
@@ -322,7 +322,6 @@ export async function processCarteiraUpload(
       type: 'array',
       cellDates: true,
       raw: true,
-      dense: true,
     });
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
