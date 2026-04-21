@@ -134,19 +134,12 @@ export interface ConfiguracaoFrota {
 }
 
 export interface PayloadMotorParametros {
-  usuario_id: string;
-  usuario_nome: string;
-  filial_id: string;
-  filial_nome: string;
-  upload_id: string;
-  rodada_id: string;
-  data_execucao: string;
-  data_base_roteirizacao: string;
-  origem_sistema: 'sistema_1';
-  modelo_roteirizacao: string;
-  tipo_roteirizacao: TipoRoteirizacao;
-  configuracao_frota: ConfiguracaoFrota[];
-  filtros_aplicados: Record<string, any>;
+  usuario_nome?: string;
+  filial_nome?: string;
+  origem_sistema?: 'sistema_1';
+  modelo_roteirizacao?: string;
+  filtros_aplicados?: Record<string, any>;
+  callback_url?: string;
 }
 
 export interface CarteiraItemPayload {
@@ -265,4 +258,163 @@ export interface Upload {
   filial_id: string;
   user_id: string;
   created_at: string;
+}
+
+export interface RespostaMotorM8TemposMs {
+  tempo_total_pipeline_ms?: number | null;
+  tempo_leitura_ms?: number | null;
+  tempo_geocodificacao_ms?: number | null;
+  tempo_otimizacao_ms?: number | null;
+  tempo_montagem_ms?: number | null;
+  [key: string]: number | null | undefined;
+}
+
+export interface ResumoExecucaoM8 {
+  rodada_id: string;
+  upload_id: string;
+  filial_id: string;
+  usuario_id: string;
+  data_execucao?: string | null;
+  origem_sistema?: string | null;
+  tipo_roteirizacao?: TipoRoteirizacao | string | null;
+  modelo_roteirizacao?: string | null;
+  versao_motor?: string | null;
+  tempos_ms?: RespostaMotorM8TemposMs | null;
+}
+
+export interface ContextoRodadaM8 {
+  rodada_id?: string;
+  upload_id?: string;
+  filial_id?: string;
+  usuario_id?: string;
+  data_base_roteirizacao?: string | null;
+  tipo_roteirizacao?: TipoRoteirizacao | string | null;
+  filtros_aplicados?: Record<string, any> | null;
+  configuracao_frota?: ConfiguracaoFrota[] | null;
+  filial?: Record<string, any>;
+  parametros_rodada?: Record<string, any>;
+}
+
+export interface StatusModuloM8 {
+  modulo: string;
+  status: string;
+  mensagem?: string | null;
+  tempo_ms?: number | null;
+  quantidade_entrada?: number | null;
+  quantidade_saida?: number | null;
+}
+
+export interface EstatisticasCarteiraM8 {
+  total_carteira: number;
+  total_roteirizavel: number;
+  total_agendamento_futuro: number;
+  total_agendas_vencidas: number;
+  total_excecoes: number;
+  total_sem_agenda: number;
+}
+
+export interface EstatisticasCargasM8 {
+  total_manifestos_m7: number;
+  total_itens_m7: number;
+  cargas_fechadas_m4: number;
+  cargas_compostas_m5: number;
+  remanescente_m6_2: number;
+  km_total_m7: number;
+  km_medio_manifesto_m7: number;
+  ocupacao_media_manifesto_m7: number;
+  qtd_media_itens_por_manifesto: number;
+}
+
+export interface EstatisticaPorPerfilQuantidadeM8 {
+  chave: string;
+  quantidade: number;
+}
+
+export interface EstatisticaPorPerfilOcupacaoM8 {
+  chave: string;
+  ocupacao_total: number;
+}
+
+export interface EstatisticaPorPerfilKmM8 {
+  chave: string;
+  km_total: number;
+}
+
+export interface EstatisticaPorCidadeM8 {
+  cidade: string;
+  quantidade_entregas: number;
+  peso_total: number;
+}
+
+export interface EstatisticaPorLeadtimeM8 {
+  faixa: string;
+  quantidade: number;
+}
+
+export interface EstatisticasRoteirizacaoM8 {
+  carteira: EstatisticasCarteiraM8;
+  cargas: EstatisticasCargasM8;
+  por_veiculo: {
+    cargas_por_perfil: EstatisticaPorPerfilQuantidadeM8[];
+    ocupacao_por_perfil: EstatisticaPorPerfilOcupacaoM8[];
+    km_por_perfil: EstatisticaPorPerfilKmM8[];
+  };
+  por_cidade: EstatisticaPorCidadeM8[];
+  por_leadtime_agenda: EstatisticaPorLeadtimeM8[];
+}
+
+export interface ResultadosM8 {
+  manifestos: any[];
+  itens_manifestos: any[];
+  tentativas_m7: any[];
+}
+
+export interface AuditoriaLogM8 {
+  modulo?: string;
+  status?: string;
+  mensagem?: string;
+  tempo_ms?: number | null;
+  quantidade_entrada?: number | null;
+  quantidade_saida?: number | null;
+  [key: string]: any;
+}
+
+export interface AuditoriaM8 {
+  auditoria_m7?: Record<string, any>;
+  logs: AuditoriaLogM8[];
+}
+
+export interface CallbackResultadoM8 {
+  callback_enviado: boolean;
+  callback_status: string;
+  callback_http_status?: number | null;
+  callback_url?: string;
+  callback_mensagem?: string;
+}
+
+export interface RespostaMotorM8 {
+  status: 'ok' | 'erro' | 'parcial';
+  mensagem: string;
+  pipeline_real_ate: string;
+  modo_resposta: 'contrato_retorno_sistema_1_m8' | string;
+  resumo_execucao: ResumoExecucaoM8;
+  contexto_rodada?: ContextoRodadaM8;
+  status_modulos: StatusModuloM8[];
+  estatisticas_roteirizacao: EstatisticasRoteirizacaoM8;
+  resultados: ResultadosM8;
+  auditoria: AuditoriaM8;
+  motor_response_raw: Record<string, any>;
+  callback_resultado?: CallbackResultadoM8;
+}
+
+export function isRespostaMotorM8(data: any): data is RespostaMotorM8 {
+  return !!data
+    && typeof data === 'object'
+    && data.modo_resposta === 'contrato_retorno_sistema_1_m8'
+    && typeof data.status === 'string'
+    && !!data.resumo_execucao
+    && typeof data.resumo_execucao === 'object'
+    && typeof data.resumo_execucao.rodada_id === 'string'
+    && !!data.estatisticas_roteirizacao
+    && !!data.resultados;
 }
