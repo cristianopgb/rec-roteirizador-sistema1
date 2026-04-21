@@ -159,6 +159,58 @@ export const EXCEL_TO_DB_MAP: Record<string, string> = {
 };
 
 /**
+ * Frozen motor payload contract: maps every DB column name to the exact key
+ * the motor expects, as validated in the Swagger reference payload.
+ * Every carteira column sent to the motor must pass through this map.
+ * No implicit keys. No fallbacks. No aliases.
+ */
+export const DB_TO_MOTOR_KEY_MAP: Record<string, string> = {
+  'filial_r':          'Filial R',
+  'romane':            'Romane',
+  'filial_d':          'Filial D',
+  'serie':             'Série',
+  'nro_doc':           'Nro Doc.',
+  'data_des':          'Data D',
+  'data_nf':           'Data N',
+  'dle':               'D.L.E.',
+  'agendam':           'Agendam.',
+  'palet':             'Palet',
+  'conf':              'Conf',
+  'peso':              'Peso',
+  'vlr_merc':          'Vlr.Merc.',
+  'qtd':               'Qtd.',
+  'peso_cubico':       'Peso Cub.',
+  'classif':           'Classif',
+  'tomad':             'Tomad',
+  'destin':            'Destin',
+  'bairro':            'Bairro',
+  'cidade':            'Cida',
+  'uf':                'UF',
+  'nf_serie':          'NF / Serie',
+  'tipo_ca':           'Tipo Ca',
+  'qtd_nf':            'Qtd.NF',
+  'mesoregiao':        'Mesoregião',
+  'sub_regiao':        'Sub-Região',
+  'ocorrencias_nf':    'Ocorrências NF',
+  'remetente':         'Remetente',
+  'observacao':        'Observação',
+  'ref_cliente':       'Ref Cliente',
+  'cidade_dest':       'Cidade Dest.',
+  'agenda':            'Agenda',
+  'tipo_carga':        'Tipo Carga',
+  'ultima_ocorrencia': 'Última Ocorrência',
+  'status_r':          'Status R',
+  'latitude':          'Latitude',
+  'longitude':         'Longitude',
+  'peso_calculo':      'Peso Calculo',
+  'prioridade':        'Prioridade',
+  'restricao_veiculo': 'Restrição Veículo',
+  'carro_dedicado':    'Carro Dedicado',
+  'inicio_entrega':    'Inicio Ent.',
+  'fim_entrega':       'Fim En',
+};
+
+/**
  * Type representing a single row from the carteira Excel file - VERSION 2.
  * All fields from the 43-column structure.
  */

@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 import { MOTOR_HEALTH_ENDPOINT, MOTOR_ROTEIRIZAR_ENDPOINT, MOTOR_TIMEOUT_MS } from '../config/api.config';
-import { COLUNAS_OBRIGATORIAS_EXCEL, EXCEL_TO_DB_MAP } from '../constants/carteira-columns';
+import { COLUNAS_OBRIGATORIAS_EXCEL, EXCEL_TO_DB_MAP, DB_TO_MOTOR_KEY_MAP } from '../constants/carteira-columns';
 import type { Veiculo, Regionalidade, TipoRoteirizacao, ConfiguracaoFrota } from '../types';
 
 export interface RodadaRoteirizacao {
@@ -130,14 +130,6 @@ export interface RespostaMotorM8 {
 
 export type RespostaMotor = RespostaMotorLegado | RespostaMotorM8;
 
-const DB_TO_EXCEL_MAP: Record<string, string> = Object.entries(EXCEL_TO_DB_MAP).reduce(
-  (acc, [excelColumn, dbColumn]) => {
-    acc[String(dbColumn)] = excelColumn;
-    return acc;
-  },
-  {} as Record<string, string>
-);
-
 const FILTER_TO_DB_COLUMN_MAP: Record<string, string> = {
   uf: 'uf',
   cida: 'cidade',
@@ -181,7 +173,8 @@ function montarLinhaCarteiraPayload(item: CarteiraItem): Record<string, any> {
 
   for (const excelColumn of COLUNAS_OBRIGATORIAS_EXCEL) {
     const dbColumn = EXCEL_TO_DB_MAP[excelColumn];
-    mappedItem[excelColumn] = sanitizePayloadValue(item[dbColumn]);
+    const motorKey = DB_TO_MOTOR_KEY_MAP[dbColumn];
+    mappedItem[motorKey] = sanitizePayloadValue(item[dbColumn]);
   }
 
   return mappedItem;
