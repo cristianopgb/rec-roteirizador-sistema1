@@ -168,13 +168,78 @@ function sanitizePayloadValue(value: any): any {
   return value;
 }
 
+// Returns a Date parsed from a DB date string (yyyy-mm-dd, yyyy-mm-ddTHH:mm:ss, or ISO).
+function parseDateString(value: any): Date | null {
+  if (value === null || value === undefined || value === '') return null;
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function pad2(n: number): string {
+  return String(n).padStart(2, '0');
+}
+
+// yyyy-MM-ddTHH:mm:ss — used by data_des and data_nf
+function normalizarDataIso(value: any): string | null {
+  const d = parseDateString(value);
+  if (!d) return null;
+  return (
+    `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}` +
+    `T${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`
+  );
+}
+
+// dd/MM/yyyy — used by dle
+function normalizarDataDiaMesAno(value: any): string | null {
+  const d = parseDateString(value);
+  if (!d) return null;
+  return `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear()}`;
+}
+
+// dd/MM/yyyy HH:mm:ss — used by agendam
+function normalizarDataAgendamento(value: any): string | null {
+  const d = parseDateString(value);
+  if (!d) return null;
+  return (
+    `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear()}` +
+    ` ${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`
+  );
+}
+
+// true → "SIM", anything else → null
+function normalizarCarroDedicado(value: any): string | null {
+  return value === true ? 'SIM' : null;
+}
+
+// Closed map — extend when new labels are added to the DB
+const PRIORIDADE_LABEL_TO_NUMBER: Record<string, number> = {
+  'ALTA':  1,
+  'MEDIA': 2,
+  'BAIXA': 3,
+};
+
+function normalizarPrioridade(value: any): number | null {
+  if (value === null || value === undefined) return null;
+  return PRIORIDADE_LABEL_TO_NUMBER[String(value)] ?? null;
+}
+
+const DB_COLUMN_VALUE_NORMALIZER_MAP: Record<string, (v: any) => any> = {
+  data_des:      normalizarDataIso,
+  data_nf:       normalizarDataIso,
+  dle:           normalizarDataDiaMesAno,
+  agendam:       normalizarDataAgendamento,
+  carro_dedicado: normalizarCarroDedicado,
+  prioridade:    normalizarPrioridade,
+};
+
 function montarLinhaCarteiraPayload(item: CarteiraItem): Record<string, any> {
   const mappedItem: Record<string, any> = {};
 
   for (const excelColumn of COLUNAS_OBRIGATORIAS_EXCEL) {
     const dbColumn = EXCEL_TO_DB_MAP[excelColumn];
     const motorKey = DB_TO_MOTOR_KEY_MAP[dbColumn];
-    mappedItem[motorKey] = sanitizePayloadValue(item[dbColumn]);
+    const normalizer = DB_COLUMN_VALUE_NORMALIZER_MAP[dbColumn] ?? sanitizePayloadValue;
+    mappedItem[motorKey] = normalizer(item[dbColumn]);
   }
 
   return mappedItem;
