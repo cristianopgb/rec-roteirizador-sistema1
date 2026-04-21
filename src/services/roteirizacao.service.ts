@@ -1,7 +1,7 @@
 import { supabase } from './supabase';
 import { MOTOR_HEALTH_ENDPOINT, MOTOR_ROTEIRIZAR_ENDPOINT, MOTOR_TIMEOUT_MS } from '../config/api.config';
-import { COLUNAS_OBRIGATORIAS_EXCEL } from '../constants/carteira-columns';
-import type { Veiculo, Regionalidade } from '../types';
+import { COLUNAS_OBRIGATORIAS_EXCEL, EXCEL_TO_DB_MAP } from '../constants/carteira-columns';
+import type { Veiculo, Regionalidade, TipoRoteirizacao, ConfiguracaoFrota } from '../types';
 
 export interface RodadaRoteirizacao {
   id: string;
@@ -19,12 +19,11 @@ export interface RodadaRoteirizacao {
 export interface CarteiraItem {
   id: string;
   upload_id: string;
-  dados_linha: Record<string, any>;
+  dados_linha?: Record<string, any>;
   status_validacao: 'valida' | 'invalida';
   erro_validacao: string | null;
+  [key: string]: any;
 }
-
-import type { TipoRoteirizacao, ConfiguracaoFrota, PayloadMotorParametros } from '../types';
 
 export interface VeiculoPayload {
   id: string;
@@ -57,21 +56,31 @@ export interface FilialPayload {
   longitude: number;
 }
 
+export interface PayloadMotorParametros {
+  usuario_nome?: string;
+  filial_nome?: string;
+  modelo_roteirizacao?: string;
+  filtros_aplicados?: Record<string, any>;
+  origem_sistema?: string;
+  callback_url?: string;
+}
+
 export interface PayloadMotor {
   rodada_id: string;
   upload_id: string;
   usuario_id: string;
   filial_id: string;
   data_base_roteirizacao: string;
-  tipo_roteirizacao: string;
+  tipo_roteirizacao: TipoRoteirizacao;
   filial: FilialPayload;
   carteira: Array<Record<string, any>>;
   veiculos: VeiculoPayload[];
   regionalidades: RegionalidadePayload[];
   parametros: PayloadMotorParametros;
+  configuracao_frota?: ConfiguracaoFrota[];
 }
 
-export interface RespostaMotor {
+export interface RespostaMotorLegado {
   status: 'sucesso' | 'erro' | 'parcial';
   mensagem: string;
   resumo?: {
@@ -89,10 +98,124 @@ export interface RespostaMotor {
   logs?: string[];
 }
 
+export interface RespostaMotorM8 {
+  status: 'ok' | 'erro' | 'parcial';
+  mensagem: string;
+  pipeline_real_ate: string;
+  modo_resposta: 'contrato_retorno_sistema_1_m8' | string;
+  resumo_execucao?: {
+    rodada_id?: string;
+    upload_id?: string;
+    filial_id?: string;
+    usuario_id?: string;
+    data_execucao?: string | null;
+    origem_sistema?: string | null;
+    tipo_roteirizacao?: string | null;
+    modelo_roteirizacao?: string | null;
+    versao_motor?: string | null;
+    tempos_ms?: Record<string, number | null>;
+  };
+  contexto_rodada?: Record<string, any>;
+  status_modulos?: Array<Record<string, any>>;
+  estatisticas_roteirizacao?: Record<string, any>;
+  resultados?: {
+    manifestos?: any[];
+    itens_manifestos?: any[];
+    tentativas_m7?: any[];
+  };
+  auditoria?: Record<string, any>;
+  motor_response_raw?: Record<string, any>;
+  callback_resultado?: Record<string, any>;
+}
+
+export type RespostaMotor = RespostaMotorLegado | RespostaMotorM8;
+
+const DB_TO_EXCEL_MAP: Record<string, string> = Object.entries(EXCEL_TO_DB_MAP).reduce(
+  (acc, [excelColumn, dbColumn]) => {
+    acc[String(dbColumn)] = excelColumn;
+    return acc;
+  },
+  {} as Record<string, string>
+);
+
+const FILTER_TO_DB_COLUMN_MAP: Record<string, string> = {
+  uf: 'uf',
+  cida: 'cidade',
+  cidade: 'cidade',
+  destinatario: 'destin',
+  tomador: 'tomad',
+  mesoregiao: 'mesoregiao',
+  filial: 'filial_d',
+};
+
+function isRespostaMotorM8(data: any): data is RespostaMotorM8 {
+  return !!data &&
+    typeof data === 'object' &&
+    typeof data.status === 'string' &&
+    !!data.modo_resposta &&
+    !!data.resumo_execucao;
+}
+
+function getStatusRodadaFromResposta(resposta: RespostaMotor): 'processado' | 'erro' {
+  if (isRespostaMotorM8(resposta)) {
+    return resposta.status === 'ok' ? 'processado' : 'erro';
+  }
+
+  return resposta.status === 'erro' ? 'erro' : 'processado';
+}
+
+function sanitizePayloadValue(value: any): any {
+  if (value === undefined) {
+    return null;
+  }
+
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+
+  return value;
+}
+
+function montarLinhaCarteiraPayload(item: CarteiraItem): Record<string, any> {
+  const mappedItem: Record<string, any> = {};
+
+  for (const excelColumn of COLUNAS_OBRIGATORIAS_EXCEL) {
+    const dbColumn = EXCEL_TO_DB_MAP[excelColumn];
+    mappedItem[excelColumn] = sanitizePayloadValue(item[dbColumn]);
+  }
+
+  return mappedItem;
+}
+
+function applyArrayOrScalarFilter(
+  query: any,
+  column: string,
+  value: any,
+  mode: 'eq' | 'ilike' = 'eq'
+) {
+  if (value === undefined || value === null || value === '') {
+    return query;
+  }
+
+  if (Array.isArray(value)) {
+    const filteredValues = value.filter(v => v !== undefined && v !== null && v !== '');
+    if (filteredValues.length === 0) {
+      return query;
+    }
+    return query.in(column, filteredValues);
+  }
+
+  if (mode === 'ilike' && typeof value === 'string') {
+    return query.ilike(column, `%${value}%`);
+  }
+
+  return query.eq(column, value);
+}
+
 export async function verificarHealthMotor(): Promise<boolean> {
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout for health check
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
 
     const response = await fetch(MOTOR_HEALTH_ENDPOINT, {
       method: 'GET',
@@ -119,47 +242,29 @@ export async function buscarCarteiraValida(
 
   if (filtros) {
     if (filtros.uf) {
-      if (Array.isArray(filtros.uf)) {
-        query = query.in('uf', filtros.uf);
-      } else {
-        query = query.eq('uf', filtros.uf);
-      }
+      query = applyArrayOrScalarFilter(query, FILTER_TO_DB_COLUMN_MAP.uf, filtros.uf);
     }
+
     if (filtros.cida) {
-      if (Array.isArray(filtros.cida)) {
-        query = query.in('cida', filtros.cida);
-      } else {
-        query = query.ilike('cida', `%${filtros.cida}%`);
-      }
+      query = applyArrayOrScalarFilter(query, FILTER_TO_DB_COLUMN_MAP.cida, filtros.cida, 'ilike');
     }
+
     if (filtros.filial) {
-      if (Array.isArray(filtros.filial)) {
-        query = query.in('filial', filtros.filial);
-      } else {
-        query = query.eq('filial', filtros.filial);
-      }
+      query = applyArrayOrScalarFilter(query, FILTER_TO_DB_COLUMN_MAP.filial, filtros.filial);
     }
+
     if (filtros.destinatario) {
-      if (Array.isArray(filtros.destinatario)) {
-        query = query.in('destinatario', filtros.destinatario);
-      } else {
-        query = query.ilike('destinatario', `%${filtros.destinatario}%`);
-      }
+      query = applyArrayOrScalarFilter(query, FILTER_TO_DB_COLUMN_MAP.destinatario, filtros.destinatario, 'ilike');
     }
+
     if (filtros.tomador) {
-      if (Array.isArray(filtros.tomador)) {
-        query = query.in('tomador', filtros.tomador);
-      } else {
-        query = query.ilike('tomador', `%${filtros.tomador}%`);
-      }
+      query = applyArrayOrScalarFilter(query, FILTER_TO_DB_COLUMN_MAP.tomador, filtros.tomador, 'ilike');
     }
+
     if (filtros.mesoregiao) {
-      if (Array.isArray(filtros.mesoregiao)) {
-        query = query.in('mesoregiao', filtros.mesoregiao);
-      } else {
-        query = query.eq('mesoregiao', filtros.mesoregiao);
-      }
+      query = applyArrayOrScalarFilter(query, FILTER_TO_DB_COLUMN_MAP.mesoregiao, filtros.mesoregiao);
     }
+
     if (filtros.data_des_inicio) {
       query = query.gte('data_des', filtros.data_des_inicio);
     }
@@ -192,53 +297,7 @@ export async function buscarCarteiraValida(
     throw new Error(`Erro ao buscar carteira: ${error.message}`);
   }
 
-  return (data || []).map(item => {
-    const mappedItem: Record<string, any> = {
-      'Filial': item.filial ?? '',
-      'Romane': item.romane ?? '',
-      'Filial (origem)': item.filial_origem ?? '',
-      'Série': item.serie ?? '',
-      'Nro Doc.': item.nro_doc ?? '',
-      'Data Des': item.data_des ?? '',
-      'Data NF': item.data_nf ?? '',
-      'D.L.E.': item.dle ?? '',
-      'Agendam.': item.agendam ?? '',
-      'Palet': item.palet ?? '',
-      'Conf': item.conf ?? '',
-      'Peso': item.peso,
-      'Vlr.Merc.': item.vlr_merc,
-      'Qtd.': item.qtd,
-      'Peso C': item.peso_c,
-      'Classifi': item.classifi ?? '',
-      'Tomador': item.tomador ?? '',
-      'Destinatário': item.destinatario ?? '',
-      'Bairro': item.bairro ?? '',
-      'Cida': item.cida ?? '',
-      'UF': item.uf ?? '',
-      'NF / Serie': item.nf_serie ?? '',
-      'Tipo Carga': item.tipo_carga ?? '',
-      'Qtd.NF': item.qtd_nf,
-      'Região': item.regiao ?? '',
-      'Sub-Região': item.sub_regiao ?? '',
-      'Ocorrências NFs': item.ocorrencias_nfs ?? '',
-      'Remetente': item.remetente ?? '',
-      'Observação R': item.observacao_r,
-      'Ref Cliente': item.ref_cliente,
-      'Cidade Dest.': item.cidade_dest ?? '',
-      'Mesoregião': item.mesoregiao ?? '',
-      'Agenda': item.agenda ?? '',
-      'Tipo C': item.tipo_c ?? '',
-      'Última': item.ultima ?? '',
-      'Status': item.status ?? '',
-      'Lat.': item.lat,
-      'Lon.': item.lon,
-      'Veiculo Exclusivo': item.veiculo_exclusivo ?? null,
-      'Peso Calculado': item.peso_calculado ?? null,
-      'Prioridade': item.prioridade ?? null,
-    };
-
-    return mappedItem;
-  });
+  return (data || []).map(montarLinhaCarteiraPayload);
 }
 
 export async function buscarVeiculosAtivos(filialId: string): Promise<Veiculo[]> {
@@ -328,7 +387,7 @@ export async function montarPayloadMotor(
     veiculosFiltrados = veiculosCompletos.filter(v => perfisElegiveis.has(v.perfil));
   }
 
-  const veiculos = veiculosFiltrados.map(v => ({
+  const veiculos: VeiculoPayload[] = veiculosFiltrados.map(v => ({
     id: v.id,
     placa: v.placa,
     perfil: v.perfil,
@@ -343,7 +402,7 @@ export async function montarPayloadMotor(
     ativo: v.ativo,
   }));
 
-  const regionalidades = regionalidadesCompletas.map(r => ({
+  const regionalidades: RegionalidadePayload[] = regionalidadesCompletas.map(r => ({
     cidade: r.cidade,
     uf: r.uf,
     mesorregiao: r.mesorregiao,
@@ -362,20 +421,13 @@ export async function montarPayloadMotor(
     veiculos,
     regionalidades,
     parametros: {
-      usuario_id: usuarioId,
       usuario_nome: usuarioNome,
-      filial_id: filialId,
       filial_nome: filialNome,
-      upload_id: uploadId,
-      rodada_id: rodadaId,
-      data_execucao: dataBaseRoteirizacao,
-      data_base_roteirizacao: dataBaseRoteirizacao,
       origem_sistema: 'sistema_1',
       modelo_roteirizacao: modeloRoteirizacao,
-      tipo_roteirizacao: tipoRoteirizacao,
-      configuracao_frota: configFrotaFinal,
       filtros_aplicados: filtros,
     },
+    configuracao_frota: configFrotaFinal,
   };
 }
 
@@ -411,6 +463,7 @@ export async function enviarParaMotorPython(payload: PayloadMotor): Promise<Resp
       }
       throw new Error(`Falha ao processar a roteirização: ${error.message}`);
     }
+
     throw new Error('Erro desconhecido ao processar a roteirização');
   }
 }
@@ -460,7 +513,7 @@ export async function salvarPayloadEnviado(
     .from('rodadas_roteirizacao')
     .update({
       payload_enviado: payload,
-      status: 'enviando'
+      status: 'enviando',
     })
     .eq('id', rodadaId);
 
@@ -473,12 +526,14 @@ export async function salvarRespostaRodada(
   rodadaId: string,
   resposta: RespostaMotor
 ): Promise<void> {
+  const statusRodada = getStatusRodadaFromResposta(resposta);
+
   const { error } = await supabase
     .from('rodadas_roteirizacao')
     .update({
       resposta_recebida: resposta,
       mensagem_retorno: resposta.mensagem,
-      status: 'processado',
+      status: statusRodada,
     })
     .eq('id', rodadaId);
 
@@ -603,36 +658,20 @@ export function validarPayloadAntesDenvio(payload: PayloadMotor): ValidacaoPaylo
     }
   }
 
-  if (!payload.parametros.rodada_id || typeof payload.parametros.rodada_id !== 'string') {
-    erros.push('parametros.rodada_id é obrigatório e deve ser uma string UUID');
+  if (!payload.parametros || typeof payload.parametros !== 'object') {
+    erros.push('parametros é obrigatório');
   }
 
-  if (!payload.parametros.data_execucao || !isValidISODate(payload.parametros.data_execucao)) {
-    erros.push('parametros.data_execucao é obrigatório e deve estar no formato ISO 8601');
+  if (payload.parametros?.origem_sistema && payload.parametros.origem_sistema !== 'sistema_1') {
+    erros.push('parametros.origem_sistema deve ser literal "sistema_1" quando informado');
   }
 
-  if (!payload.parametros.data_base_roteirizacao || !isValidISODate(payload.parametros.data_base_roteirizacao)) {
-    erros.push('parametros.data_base_roteirizacao é obrigatório e deve estar no formato ISO 8601');
+  if (payload.tipo_roteirizacao === 'frota' && (!payload.configuracao_frota || payload.configuracao_frota.length === 0)) {
+    erros.push('tipo_roteirizacao "frota" requer configuracao_frota no topo com pelo menos 1 item');
   }
 
-  if (payload.parametros.origem_sistema !== 'sistema_1') {
-    erros.push('parametros.origem_sistema deve ser literal "sistema_1"');
-  }
-
-  if (!payload.parametros.tipo_roteirizacao || !['carteira', 'frota'].includes(payload.parametros.tipo_roteirizacao)) {
-    erros.push('parametros.tipo_roteirizacao deve ser "carteira" ou "frota"');
-  }
-
-  if (!payload.parametros.usuario_id || !payload.parametros.filial_id || !payload.parametros.upload_id) {
-    erros.push('parametros.usuario_id, filial_id e upload_id são obrigatórios');
-  }
-
-  if (payload.parametros.tipo_roteirizacao === 'frota' && payload.parametros.configuracao_frota.length === 0) {
-    erros.push('parametros.tipo_roteirizacao "frota" requer configuracao_frota com pelo menos 1 item');
-  }
-
-  if (payload.parametros.tipo_roteirizacao === 'carteira' && payload.parametros.configuracao_frota.length > 0) {
-    erros.push('parametros.tipo_roteirizacao "carteira" deve ter configuracao_frota vazio');
+  if (payload.tipo_roteirizacao === 'carteira' && payload.configuracao_frota && payload.configuracao_frota.length > 0) {
+    erros.push('tipo_roteirizacao "carteira" deve ter configuracao_frota vazio');
   }
 
   return {
@@ -651,7 +690,7 @@ function isValidISODate(dateString: string): boolean {
 }
 
 export async function registrarAuditoriaRoteirizacao(
-  acao: 'roteirizacao_iniciada' | 'roteirizacao_concluida' | 'roteirizacao_erro',
+  acao: 'roteirizacao_iniciada' | 'roteirizacao_concluida' | 'roteirizacao_erro' | 'callback_motor_recebido',
   metadados: Record<string, any>
 ): Promise<void> {
   try {
