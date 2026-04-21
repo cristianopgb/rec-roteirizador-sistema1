@@ -10,7 +10,8 @@ import { Upload, CheckCircle, XCircle, AlertCircle, FileText, Download, Activity
 import { CarteiraFilters, CarteiraFilterValues } from '../components/carteira/CarteiraFilters';
 import { CarteiraDataGrid } from '../components/carteira/CarteiraDataGrid';
 import { HistoricoRodadas } from '../components/roteirizacao/HistoricoRodadas';
-import type { CarteiraItem } from '../types';
+import type { CarteiraItem, RespostaMotorM8 } from '../types';
+import { isRespostaMotorM8 } from '../types';
 import {
   processCarteiraUpload,
   getUploadById,
@@ -38,6 +39,106 @@ interface UploadStats {
   status: string;
   erro_estrutura?: string;
   created_at: string;
+}
+
+function isLegacyErrorResponse(resposta: any): boolean {
+  return !!resposta && typeof resposta === 'object' && resposta.status === 'erro';
+}
+
+function getMensagemResposta(resposta: any): string {
+  if (!resposta || typeof resposta !== 'object') {
+    return 'Processamento finalizado';
+  }
+
+  if (typeof resposta.mensagem === 'string' && resposta.mensagem.trim()) {
+    return resposta.mensagem.trim();
+  }
+
+  return 'Processamento finalizado';
+}
+
+function getResumoLegado(resposta: any) {
+  if (!resposta || typeof resposta !== 'object' || !resposta.resumo) {
+    return null;
+  }
+
+  return resposta.resumo;
+}
+
+function baixarJsonResposta(resposta: any) {
+  const jsonStr = JSON.stringify(resposta, null, 2);
+  const blob = new Blob([jsonStr], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `resposta_motor_${new Date().toISOString()}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function renderResumoM8(resposta: RespostaMotorM8) {
+  const estatisticas = resposta.estatisticas_roteirizacao;
+  if (!estatisticas) {
+    return null;
+  }
+
+  const totalCarteira = estatisticas.carteira?.total_carteira ?? 0;
+  const totalRoteirizavel = estatisticas.carteira?.total_roteirizavel ?? 0;
+  const totalManifestos = estatisticas.cargas?.total_manifestos_m7 ?? 0;
+  const totalItens = estatisticas.cargas?.total_itens_m7 ?? 0;
+  const kmTotal = estatisticas.cargas?.km_total_m7 ?? 0;
+
+  return (
+    <div className="mt-4 grid grid-cols-1 md:grid-cols-5 gap-3">
+      <div className="p-3 bg-white border border-green-200 rounded-lg">
+        <p className="text-xs text-gray-600">Total carteira</p>
+        <p className="text-lg font-semibold text-gray-900">{totalCarteira}</p>
+      </div>
+      <div className="p-3 bg-white border border-green-200 rounded-lg">
+        <p className="text-xs text-gray-600">Roteirizável</p>
+        <p className="text-lg font-semibold text-gray-900">{totalRoteirizavel}</p>
+      </div>
+      <div className="p-3 bg-white border border-green-200 rounded-lg">
+        <p className="text-xs text-gray-600">Manifestos M7</p>
+        <p className="text-lg font-semibold text-gray-900">{totalManifestos}</p>
+      </div>
+      <div className="p-3 bg-white border border-green-200 rounded-lg">
+        <p className="text-xs text-gray-600">Itens M7</p>
+        <p className="text-lg font-semibold text-gray-900">{totalItens}</p>
+      </div>
+      <div className="p-3 bg-white border border-green-200 rounded-lg">
+        <p className="text-xs text-gray-600">KM total M7</p>
+        <p className="text-lg font-semibold text-gray-900">
+          {Number(kmTotal).toFixed(2)}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function renderErroM8(resposta: RespostaMotorM8) {
+  const logs = resposta.auditoria?.logs || [];
+  const primeiroLog = logs[0];
+
+  return (
+    <div className="mt-4 p-4 bg-white border border-red-200 rounded-lg">
+      <div className="space-y-2">
+        <p className="text-sm text-red-900">
+          <span className="font-semibold">Pipeline até:</span> {resposta.pipeline_real_ate}
+        </p>
+        {primeiroLog?.modulo && (
+          <p className="text-sm text-red-900">
+            <span className="font-semibold">Módulo:</span> {primeiroLog.modulo}
+          </p>
+        )}
+        {primeiroLog?.mensagem && (
+          <p className="text-sm text-red-800 whitespace-pre-wrap">{primeiroLog.mensagem}</p>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export function Roteirizacao() {
@@ -140,6 +241,9 @@ export function Roteirizacao() {
     setItemsCount(0);
     setError(null);
     setActiveFilters({});
+    setStatusRodada(null);
+    setMensagemRodada(null);
+    setRespostaMotor(null);
   };
 
   const handleLoadUpload = async (uploadId: string) => {
@@ -150,6 +254,9 @@ export function Roteirizacao() {
       setSelectedFile(null);
       setError(null);
       setActiveFilters({});
+      setStatusRodada(null);
+      setMensagemRodada(null);
+      setRespostaMotor(null);
     } catch (err) {
       console.error('Erro ao carregar upload:', err);
       setError('Erro ao carregar upload');
@@ -175,7 +282,7 @@ export function Roteirizacao() {
       } else {
         setError('Motor de roteirização está indisponível. Tente novamente mais tarde.');
       }
-    } catch (err) {
+    } catch {
       setError('Falha ao testar conexão com o motor de roteirização');
     } finally {
       setIsTestingConnection(false);
@@ -251,9 +358,66 @@ export function Roteirizacao() {
       const resposta = await enviarParaMotorPython(payload);
 
       await salvarRespostaRodada(rodadaId, resposta);
-      setStatusRodada('processado');
-      setMensagemRodada(resposta.mensagem || 'Roteirização processada com sucesso');
       setRespostaMotor(resposta);
+
+      const mensagem = getMensagemResposta(resposta);
+
+      if (isRespostaMotorM8(resposta)) {
+        if (resposta.status === 'ok') {
+          setStatusRodada('processado');
+          setMensagemRodada(mensagem);
+
+          await registrarAuditoriaRoteirizacao('roteirizacao_concluida', {
+            usuario_id: profile.id,
+            upload_id: currentUpload.id,
+            rodada_id: rodadaId,
+            total_cargas: payload.carteira.length,
+            total_veiculos: payload.veiculos.length,
+            status_resposta: resposta.status,
+            pipeline_real_ate: resposta.pipeline_real_ate,
+            modo_resposta: resposta.modo_resposta,
+          });
+
+          const tipoMsg = tipoRoteirizacao === 'frota'
+            ? `\n\nModo: Frota (${configuracaoFrota.length} perfis configurados)`
+            : '\n\nModo: Carteira (maximização)';
+
+          alert(`Roteirização concluída com sucesso!${tipoMsg}\n\n${mensagem}`);
+        } else {
+          setStatusRodada('erro');
+          setMensagemRodada(mensagem);
+
+          await registrarAuditoriaRoteirizacao('roteirizacao_erro', {
+            usuario_id: profile.id,
+            upload_id: currentUpload.id,
+            rodada_id: rodadaId,
+            erro: mensagem,
+            status_resposta: resposta.status,
+            pipeline_real_ate: resposta.pipeline_real_ate,
+            modo_resposta: resposta.modo_resposta,
+          });
+        }
+
+        return;
+      }
+
+      if (isLegacyErrorResponse(resposta)) {
+        setStatusRodada('erro');
+        setMensagemRodada(mensagem);
+
+        await registrarAuditoriaRoteirizacao('roteirizacao_erro', {
+          usuario_id: profile.id,
+          upload_id: currentUpload.id,
+          rodada_id: rodadaId,
+          erro: mensagem,
+          status_resposta: resposta.status,
+        });
+
+        return;
+      }
+
+      setStatusRodada('processado');
+      setMensagemRodada(mensagem);
 
       await registrarAuditoriaRoteirizacao('roteirizacao_concluida', {
         usuario_id: profile.id,
@@ -264,17 +428,16 @@ export function Roteirizacao() {
         status_resposta: resposta.status,
       });
 
+      const resumo = getResumoLegado(resposta);
       const tipoMsg = tipoRoteirizacao === 'frota'
         ? `\n\nModo: Frota (${configuracaoFrota.length} perfis configurados)`
         : '\n\nModo: Carteira (maximização)';
 
-      const alertMessage = `Roteirização concluída com sucesso!${tipoMsg}\n\n${resposta.mensagem || 'Processamento finalizado'}`;
-      const resumoMsg = resposta.resumo
-        ? `\n\nResumo:\n- Total carteira: ${resposta.resumo.total_carteira}\n- Total roteirizado: ${resposta.resumo.total_roteirizado}\n- Total não roteirizado: ${resposta.resumo.total_nao_roteirizado}\n- Manifestos fechados: ${resposta.resumo.total_manifestos_fechados}\n- Manifestos compostos: ${resposta.resumo.total_manifestos_compostos}\n- Ocupação média peso: ${resposta.resumo.ocupacao_media_peso.toFixed(1)}%\n- Ocupação média volume: ${resposta.resumo.ocupacao_media_volume.toFixed(1)}%`
+      const resumoMsg = resumo
+        ? `\n\nResumo:\n- Total carteira: ${resumo.total_carteira}\n- Total roteirizado: ${resumo.total_roteirizado}\n- Total não roteirizado: ${resumo.total_nao_roteirizado}\n- Manifestos fechados: ${resumo.total_manifestos_fechados}\n- Manifestos compostos: ${resumo.total_manifestos_compostos}\n- Ocupação média peso: ${Number(resumo.ocupacao_media_peso).toFixed(1)}%\n- Ocupação média volume: ${Number(resumo.ocupacao_media_volume).toFixed(1)}%`
         : '';
 
-      alert(alertMessage + resumoMsg);
-
+      alert(`Roteirização concluída com sucesso!${tipoMsg}\n\n${mensagem}${resumoMsg}`);
     } catch (err) {
       console.error('Erro ao roteirizar:', err);
       const errorMessage = err instanceof Error ? err.message : 'Erro ao processar roteirização';
@@ -304,6 +467,8 @@ export function Roteirizacao() {
   const validationRate = currentUpload && currentUpload.total_linhas > 0
     ? Math.round((currentUpload.total_validas / currentUpload.total_linhas) * 100)
     : 0;
+
+  const respostaM8 = isRespostaMotorM8(respostaMotor) ? respostaMotor : null;
 
   return (
     <Layout>
@@ -435,8 +600,7 @@ export function Roteirizacao() {
                       <p className="text-red-800">{currentUpload.erro_estrutura}</p>
                       <p className="text-sm text-red-700 mt-3">
                         O arquivo foi rejeitado. Por favor, verifique se todas as colunas estão
-                        presentes e escritas exatamente como esperado (incluindo acentos,
-                        espaços e pontuação).
+                        presentes e escritas exatamente como esperado.
                       </p>
                     </div>
                   </div>
@@ -554,20 +718,12 @@ export function Roteirizacao() {
                         <div className="flex-1">
                           <h3 className="font-semibold text-green-900">Roteirização Concluída</h3>
                           <p className="text-sm text-green-800 mt-1">{mensagemRodada}</p>
+
+                          {respostaM8 && respostaM8.status === 'ok' && renderResumoM8(respostaM8)}
+
                           {respostaMotor && (
                             <button
-                              onClick={() => {
-                                const jsonStr = JSON.stringify(respostaMotor, null, 2);
-                                const blob = new Blob([jsonStr], { type: 'application/json' });
-                                const url = URL.createObjectURL(blob);
-                                const a = document.createElement('a');
-                                a.href = url;
-                                a.download = `resposta_motor_${new Date().toISOString()}.json`;
-                                document.body.appendChild(a);
-                                a.click();
-                                document.body.removeChild(a);
-                                URL.revokeObjectURL(url);
-                              }}
+                              onClick={() => baixarJsonResposta(respostaMotor)}
                               className="mt-3 text-sm text-green-700 underline hover:text-green-900"
                             >
                               Baixar resposta completa (JSON)
@@ -584,7 +740,18 @@ export function Roteirizacao() {
                         <XCircle className="text-red-600 flex-shrink-0" size={20} />
                         <div className="flex-1">
                           <h3 className="font-semibold text-red-900">Erro ao Roteirizar</h3>
-                          <p className="text-sm text-red-800 mt-1">{mensagemRodada}</p>
+                          <p className="text-sm text-red-800 mt-1 whitespace-pre-wrap">{mensagemRodada}</p>
+
+                          {respostaM8 && renderErroM8(respostaM8)}
+
+                          {respostaMotor && (
+                            <button
+                              onClick={() => baixarJsonResposta(respostaMotor)}
+                              className="mt-3 text-sm text-red-700 underline hover:text-red-900"
+                            >
+                              Baixar resposta completa (JSON)
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
