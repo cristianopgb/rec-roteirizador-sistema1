@@ -21,6 +21,8 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import { imprimirManifesto } from '../utils/manifestoPdf';
+import { reprocessarPersistenciaRodada } from '../services/roteirizacao.service';
+import { calcularFreteMinimoPorManifesto } from '../services/frete.service';
 
 interface RodadaRow {
   id: string;
@@ -127,6 +129,7 @@ export function Aprovacao() {
   const [itensManifesto, setItensManifesto] = useState<ManifestoItemRow[]>([]);
   const [itensEditados, setItensEditados] = useState<Record<string, number>>({});
   const [salvandoSeq, setSalvandoSeq] = useState(false);
+  const [reprocessando, setReprocessando] = useState(false);
 
   useEffect(() => {
     if (profile?.filial_id) {
@@ -138,6 +141,14 @@ export function Aprovacao() {
     const urlRodada = searchParams.get('rodadaId');
     if (urlRodada) setSelectedRodadaId(urlRodada);
   }, [searchParams]);
+
+  useEffect(() => {
+    const urlRodada = searchParams.get('rodadaId');
+    if (!urlRodada || rodadas.length === 0) return;
+    if (!rodadas.find((r) => r.id === urlRodada)) {
+      carregarRodadas();
+    }
+  }, [searchParams, rodadas]);
 
   useEffect(() => {
     if (!selectedRodadaId && rodadas.length > 0) {
@@ -301,6 +312,30 @@ export function Aprovacao() {
     setItensEditados({});
   }
 
+  async function handleReprocessar() {
+    if (!selectedRodadaId) return;
+    setReprocessando(true);
+    try {
+      const contagem = await reprocessarPersistenciaRodada(selectedRodadaId);
+      try {
+        await calcularFreteMinimoPorManifesto(selectedRodadaId);
+      } catch (freteErr) {
+        console.error('[Aprovacao] frete falhou no reprocesso:', freteErr);
+      }
+      alert(
+        `Reprocessamento concluído:\n- Manifestos: ${contagem.manifestos}\n- Itens: ${contagem.itens}\n- Remanescentes: ${contagem.remanescentes}\n- Estatísticas: ${contagem.estatisticas}`
+      );
+      await carregarDetalheRodada(selectedRodadaId);
+      await carregarRodadas();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error('[Aprovacao] reprocessar falhou:', msg);
+      alert(`Falha ao reprocessar: ${msg}`);
+    } finally {
+      setReprocessando(false);
+    }
+  }
+
   function handleDownloadPdf() {
     if (!manifestoSelecionado || !selectedRodadaId) return;
     const rodada = rodadas.find((r) => r.id === selectedRodadaId);
@@ -402,8 +437,29 @@ export function Aprovacao() {
                       {fmtDate(selectedRodada.created_at)} — {filiaisMap[selectedRodada.filial_id] ?? '—'}
                     </div>
                   </div>
-                  <StatusBadge status={selectedRodada.status} />
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="secondary"
+                      onClick={handleReprocessar}
+                      loading={reprocessando}
+                      className="text-sm"
+                    >
+                      Reprocessar
+                    </Button>
+                    <StatusBadge status={selectedRodada.status} />
+                  </div>
                 </div>
+
+                {!loadingDetalhe && selectedRodada.status === 'processado' && manifestos.length === 0 && (
+                  <div className="mx-6 mt-4 p-3 bg-amber-50 border border-amber-300 text-amber-800 rounded flex items-start gap-2 text-sm">
+                    <AlertCircle size={18} className="flex-shrink-0 mt-0.5" />
+                    <div>
+                      <strong>Rodada processada mas sem dados estruturados.</strong>{' '}
+                      Clique em <em>Reprocessar</em> para persistir os manifestos a partir da resposta original do motor.
+                      Se persistir o problema, verifique o console do navegador.
+                    </div>
+                  </div>
+                )}
 
                 <div className="border-b border-gray-200 px-6">
                   <nav className="flex gap-1">

@@ -441,14 +441,31 @@ export function Roteirizacao() {
         ? `\n\nResumo:\n- Total carteira: ${resumo.total_carteira}\n- Total roteirizado: ${resumo.total_roteirizado}\n- Total não roteirizado: ${resumo.total_nao_roteirizado}\n- Manifestos fechados: ${resumo.total_manifestos_fechados}\n- Manifestos compostos: ${resumo.total_manifestos_compostos}\n- Ocupação média peso: ${Number(resumo.ocupacao_media_peso).toFixed(1)}%\n- Ocupação média volume: ${Number(resumo.ocupacao_media_volume).toFixed(1)}%`
         : '';
 
-      alert(`Roteirização concluída com sucesso!${tipoMsg}\n\n${mensagem}${resumoMsg}`);
-
+      let contagemPersistencia: Awaited<ReturnType<typeof persistirResultadoRodada>> | null = null;
+      let persistErrMsg: string | null = null;
       try {
-        await persistirResultadoRodada(rodadaId, resposta);
-        await calcularFreteMinimoPorManifesto(rodadaId);
+        contagemPersistencia = await persistirResultadoRodada(rodadaId, resposta);
       } catch (persistErr) {
-        console.error('Erro ao persistir resultado estruturado:', persistErr);
+        persistErrMsg = persistErr instanceof Error ? persistErr.message : String(persistErr);
+        console.error('[Roteirizacao] persistência estruturada falhou:', persistErrMsg);
       }
+
+      if (!persistErrMsg) {
+        try {
+          await calcularFreteMinimoPorManifesto(rodadaId);
+        } catch (freteErr) {
+          const fMsg = freteErr instanceof Error ? freteErr.message : String(freteErr);
+          console.error('[Roteirizacao] cálculo de frete falhou:', fMsg);
+        }
+      }
+
+      const persistenciaMsg = persistErrMsg
+        ? `\n\nATENÇÃO: persistência estruturada falhou: ${persistErrMsg}`
+        : contagemPersistencia
+          ? `\n\nPersistido: ${contagemPersistencia.manifestos} manifestos, ${contagemPersistencia.itens} itens, ${contagemPersistencia.remanescentes} remanescentes, ${contagemPersistencia.estatisticas} estatística(s)`
+          : '';
+
+      alert(`Roteirização concluída com sucesso!${tipoMsg}\n\n${mensagem}${resumoMsg}${persistenciaMsg}`);
 
       navigate(`/aprovacao?rodadaId=${rodadaId}`);
     } catch (err) {

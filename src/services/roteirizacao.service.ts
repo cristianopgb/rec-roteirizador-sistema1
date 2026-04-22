@@ -623,10 +623,15 @@ function resolveMotorRaw(resposta: RespostaMotor): Record<string, any> | null {
   if (asAny.motor_response_raw && typeof asAny.motor_response_raw === 'object') {
     return asAny.motor_response_raw;
   }
-  if (asAny.manifestos_m7 || asAny.itens_manifestos_sequenciados_m7) {
-    return asAny;
-  }
   return null;
+}
+
+export interface ContagemPersistencia {
+  manifestos: number;
+  itens: number;
+  remanescentes: number;
+  estatisticas: number;
+  frete_calculado: number;
 }
 
 function mapManifestoRow(rodadaId: string, m: any): Record<string, any> {
@@ -718,38 +723,85 @@ function mapEstatisticasRow(rodadaId: string, resposta: RespostaMotor, raw: Reco
   };
 }
 
+async function contarRegistros(tabela: string, rodadaId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from(tabela)
+    .select('*', { count: 'exact', head: true })
+    .eq('rodada_id', rodadaId);
+  if (error) {
+    console.error(`[persistirResultadoRodada] contar ${tabela}`, error.message);
+    return -1;
+  }
+  return count ?? 0;
+}
+
 export async function persistirResultadoRodada(
   rodadaId: string,
   resposta: RespostaMotor
-): Promise<void> {
-  try {
-    const raw = resolveMotorRaw(resposta);
-    const statusTop = (resposta as any)?.status;
-    if (statusTop === 'erro') return;
+): Promise<ContagemPersistencia> {
+  const contagem: ContagemPersistencia = {
+    manifestos: 0,
+    itens: 0,
+    remanescentes: 0,
+    estatisticas: 0,
+    frete_calculado: 0,
+  };
 
-    // 1. limpeza idempotente
+  const raw = resolveMotorRaw(resposta);
+  if (!raw) {
+    const msg = 'FALHA_PERSISTENCIA::ETAPA=validacao::motor_response_raw ausente no retorno';
+    console.error('[persistirResultadoRodada]', msg);
+    throw new Error(msg);
+  }
+
+  const manifestosArr = raw.manifestos_m7;
+  const itensArr = raw.itens_manifestos_sequenciados_m7;
+  console.info('[persistirResultadoRodada] rodada=', rodadaId,
+    'manifestos_m7=', Array.isArray(manifestosArr) ? manifestosArr.length : 'ausente',
+    'itens_m7=', Array.isArray(itensArr) ? itensArr.length : 'ausente');
+
+  // --- Limpeza idempotente (etapa cleanup) ---
+  try {
     await supabase.from('manifestos_itens').delete().eq('rodada_id', rodadaId);
     await supabase.from('manifestos_roteirizacao').delete().eq('rodada_id', rodadaId);
     await supabase.from('remanescentes_roteirizacao').delete().eq('rodada_id', rodadaId);
     await supabase.from('estatisticas_roteirizacao').delete().eq('rodada_id', rodadaId);
+  } catch (err) {
+    const msg = `FALHA_PERSISTENCIA::ETAPA=cleanup::${err instanceof Error ? err.message : String(err)}`;
+    console.error('[persistirResultadoRodada]', msg);
+    throw new Error(msg);
+  }
 
-    // 2. manifestos
-    const manifestos = Array.isArray(raw?.manifestos_m7) ? raw!.manifestos_m7 : [];
-    if (manifestos.length > 0) {
-      const rows = manifestos.map((m: any) => mapManifestoRow(rodadaId, m)).filter((r) => r.manifesto_id);
+  // --- Etapa manifestos ---
+  try {
+    if (!Array.isArray(manifestosArr)) {
+      throw new Error('motor_response_raw.manifestos_m7 não é um array');
+    }
+    if (manifestosArr.length > 0) {
+      const rows = manifestosArr
+        .map((m: any) => mapManifestoRow(rodadaId, m))
+        .filter((r) => r.manifesto_id);
       if (rows.length > 0) {
         const { error } = await supabase.from('manifestos_roteirizacao').insert(rows);
-        if (error) throw new Error(`manifestos_roteirizacao: ${error.message}`);
+        if (error) throw new Error(error.message);
       }
     }
+    contagem.manifestos = await contarRegistros('manifestos_roteirizacao', rodadaId);
+    console.info('[persistirResultadoRodada] etapa=manifestos gravados=', contagem.manifestos);
+  } catch (err) {
+    const msg = `FALHA_PERSISTENCIA::ETAPA=manifestos::${err instanceof Error ? err.message : String(err)}`;
+    console.error('[persistirResultadoRodada]', msg);
+    throw new Error(msg);
+  }
 
-    // 3. itens sequenciados
-    const itens = Array.isArray(raw?.itens_manifestos_sequenciados_m7)
-      ? raw!.itens_manifestos_sequenciados_m7
-      : [];
-    if (itens.length > 0) {
+  // --- Etapa itens ---
+  try {
+    if (!Array.isArray(itensArr)) {
+      throw new Error('motor_response_raw.itens_manifestos_sequenciados_m7 não é um array');
+    }
+    if (itensArr.length > 0) {
       const perManifestCounter: Record<string, number> = {};
-      const rows = itens
+      const rows = itensArr
         .map((it: any) => {
           const mid = toStrOrNull(it.manifesto_id) ?? '';
           perManifestCounter[mid] = (perManifestCounter[mid] ?? 0) + 1;
@@ -759,33 +811,71 @@ export async function persistirResultadoRodada(
 
       if (rows.length > 0) {
         const { error } = await supabase.from('manifestos_itens').insert(rows);
-        if (error) throw new Error(`manifestos_itens: ${error.message}`);
+        if (error) throw new Error(error.message);
       }
     }
-
-    // 4. remanescentes: apenas se existir nó explícito
-    if (raw) {
-      const rem = extractRemanescentesExplicit(raw);
-      if (rem && rem.length > 0) {
-        const rows = rem.map((r: any) => mapRemanescenteRow(rodadaId, r));
-        const { error } = await supabase.from('remanescentes_roteirizacao').insert(rows);
-        if (error) throw new Error(`remanescentes_roteirizacao: ${error.message}`);
-      }
-    }
-
-    // 5. estatísticas
-    const statsRow = mapEstatisticasRow(rodadaId, resposta, raw);
-    const { error: eStats } = await supabase.from('estatisticas_roteirizacao').insert(statsRow);
-    if (eStats) throw new Error(`estatisticas_roteirizacao: ${eStats.message}`);
+    contagem.itens = await contarRegistros('manifestos_itens', rodadaId);
+    console.info('[persistirResultadoRodada] etapa=itens gravados=', contagem.itens);
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
+    const msg = `FALHA_PERSISTENCIA::ETAPA=itens::${err instanceof Error ? err.message : String(err)}`;
     console.error('[persistirResultadoRodada]', msg);
-    await registrarAuditoriaRoteirizacao('roteirizacao_erro', {
-      rodada_id: rodadaId,
-      erro: `Falha ao persistir resultado estruturado: ${msg}`,
-      fase: 'persistirResultadoRodada',
-    }).catch(() => undefined);
+    throw new Error(msg);
   }
+
+  // --- Etapa remanescentes (condicional a nó explícito) ---
+  try {
+    const rem = extractRemanescentesExplicit(raw);
+    if (rem && rem.length > 0) {
+      const rows = rem.map((r: any) => mapRemanescenteRow(rodadaId, r));
+      const { error } = await supabase.from('remanescentes_roteirizacao').insert(rows);
+      if (error) throw new Error(error.message);
+    }
+    contagem.remanescentes = await contarRegistros('remanescentes_roteirizacao', rodadaId);
+    const fonte = Array.isArray(raw.remanescentes)
+      ? 'raw.remanescentes'
+      : Array.isArray(raw.remanescentes_m6_2)
+        ? 'raw.remanescentes_m6_2'
+        : 'AUSENTE';
+    console.info('[persistirResultadoRodada] etapa=remanescentes gravados=', contagem.remanescentes, 'fonte=', fonte);
+  } catch (err) {
+    const msg = `FALHA_PERSISTENCIA::ETAPA=remanescentes::${err instanceof Error ? err.message : String(err)}`;
+    console.error('[persistirResultadoRodada]', msg);
+    throw new Error(msg);
+  }
+
+  // --- Etapa estatísticas ---
+  try {
+    const statsRow = mapEstatisticasRow(rodadaId, resposta, raw);
+    const { error } = await supabase.from('estatisticas_roteirizacao').insert(statsRow);
+    if (error) throw new Error(error.message);
+    contagem.estatisticas = await contarRegistros('estatisticas_roteirizacao', rodadaId);
+    console.info('[persistirResultadoRodada] etapa=estatisticas gravados=', contagem.estatisticas);
+  } catch (err) {
+    const msg = `FALHA_PERSISTENCIA::ETAPA=estatisticas::${err instanceof Error ? err.message : String(err)}`;
+    console.error('[persistirResultadoRodada]', msg);
+    throw new Error(msg);
+  }
+
+  console.info(
+    '[persistirResultadoRodada] CONCLUIDO rodada=', rodadaId,
+    'contagens=', contagem
+  );
+  return contagem;
+}
+
+export async function reprocessarPersistenciaRodada(rodadaId: string): Promise<ContagemPersistencia> {
+  const { data, error } = await supabase
+    .from('rodadas_roteirizacao')
+    .select('resposta_recebida')
+    .eq('id', rodadaId)
+    .maybeSingle();
+
+  if (error) throw new Error(`Erro ao buscar rodada: ${error.message}`);
+  if (!data || !data.resposta_recebida) {
+    throw new Error('Rodada não possui resposta_recebida para reprocessar.');
+  }
+
+  return persistirResultadoRodada(rodadaId, data.resposta_recebida as RespostaMotor);
 }
 
 export async function registrarErroRodada(

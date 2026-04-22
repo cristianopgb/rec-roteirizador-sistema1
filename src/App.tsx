@@ -9,6 +9,7 @@ import Filiais from './pages/cadastros/Filiais';
 import { Usuarios } from './pages/cadastros/Usuarios';
 import { Veiculos } from './pages/cadastros/Veiculos';
 import { Regionalidade } from './pages/cadastros/Regionalidade';
+import { TabelaANTT } from './pages/cadastros/TabelaANTT';
 
 function App() {
   return (
@@ -76,6 +77,15 @@ function App() {
             element={
               <ProtectedRoute requiredRole="admin">
                 <Regionalidade />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/cadastros/antt"
+            element={
+              <ProtectedRoute requiredRole="admin">
+                <TabelaANTT />
               </ProtectedRoute>
             }
           />

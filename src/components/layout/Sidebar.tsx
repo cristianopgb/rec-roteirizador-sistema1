@@ -7,7 +7,8 @@ import {
   Truck,
   Map,
   ChevronDown,
-  Building2
+  Building2,
+  DollarSign
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useState } from 'react';
@@ -87,6 +88,13 @@ export function Sidebar() {
                 <NavLink to="/cadastros/regionalidade" className={navLinkClass}>
                   <Map size={18} />
                   <span>Regionalidade</span>
+                </NavLink>
+              )}
+
+              {isAdmin && (
+                <NavLink to="/cadastros/antt" className={navLinkClass}>
+                  <DollarSign size={18} />
+                  <span>Tabela ANTT</span>
                 </NavLink>
               )}
             </div>
