@@ -681,21 +681,43 @@ function mapItemRow(rodadaId: string, item: any, fallbackSeq: number): Record<st
   };
 }
 
-function extractRemanescentesExplicit(raw: Record<string, any>): any[] | null {
-  if (Array.isArray(raw.remanescentes)) return raw.remanescentes;
-  if (Array.isArray(raw.remanescentes_m6_2)) return raw.remanescentes_m6_2;
-  return null;
+type GrupoRemanescente = 'nao_roteirizavel' | 'saldo_roteirizacao';
+
+function extractRemanescentes(raw: Record<string, any> | null): {
+  naoRoteirizaveis: any[];
+  saldo: any[];
+} {
+  const bloco = raw?.remanescentes;
+  const naoRoteirizaveis =
+    bloco && Array.isArray(bloco.nao_roteirizaveis_m3) ? bloco.nao_roteirizaveis_m3 : [];
+  const saldo =
+    bloco && Array.isArray(bloco.saldo_final_roteirizacao) ? bloco.saldo_final_roteirizacao : [];
+  return { naoRoteirizaveis, saldo };
 }
 
-function mapRemanescenteRow(rodadaId: string, r: any): Record<string, any> {
+function mapRemanescenteRow(
+  rodadaId: string,
+  r: any,
+  grupo: GrupoRemanescente
+): Record<string, any> {
+  let motivo: string | null;
+  let etapaOrigem: string;
+  if (grupo === 'nao_roteirizavel') {
+    motivo = toStrOrNull(r.motivo) ?? toStrOrNull(r.motivo_triagem) ?? toStrOrNull(r.status_triagem);
+    etapaOrigem = 'm3_triagem';
+  } else {
+    motivo = toStrOrNull(r.motivo) ?? 'Saldo final da roteirização';
+    etapaOrigem = 'saldo_final_roteirizacao';
+  }
   return {
     rodada_id: rodadaId,
     nro_documento: toStrOrNull(r.nro_documento),
     destinatario: toStrOrNull(r.destinatario),
     cidade: toStrOrNull(r.cidade),
     uf: toStrOrNull(r.uf),
-    motivo: toStrOrNull(r.motivo ?? r.motivo_nao_roteirizado),
-    etapa_origem: toStrOrNull(r.origem_etapa ?? r.etapa_origem),
+    motivo,
+    etapa_origem: etapaOrigem,
+    grupo_remanescente: grupo,
     payload_apoio_json: r,
   };
 }
@@ -822,21 +844,21 @@ export async function persistirResultadoRodada(
     throw new Error(msg);
   }
 
-  // --- Etapa remanescentes (condicional a nó explícito) ---
+  // --- Etapa remanescentes ---
   try {
-    const rem = extractRemanescentesExplicit(raw);
-    if (rem && rem.length > 0) {
-      const rows = rem.map((r: any) => mapRemanescenteRow(rodadaId, r));
+    const { naoRoteirizaveis, saldo } = extractRemanescentes(raw);
+    console.info('[persistirResultadoRodada] remanescentes.nao_roteirizaveis_m3 =', naoRoteirizaveis.length);
+    console.info('[persistirResultadoRodada] remanescentes.saldo_final_roteirizacao =', saldo.length);
+    const rows = [
+      ...naoRoteirizaveis.map((r: any) => mapRemanescenteRow(rodadaId, r, 'nao_roteirizavel')),
+      ...saldo.map((r: any) => mapRemanescenteRow(rodadaId, r, 'saldo_roteirizacao')),
+    ];
+    if (rows.length > 0) {
       const { error } = await supabase.from('remanescentes_roteirizacao').insert(rows);
       if (error) throw new Error(error.message);
     }
     contagem.remanescentes = await contarRegistros('remanescentes_roteirizacao', rodadaId);
-    const fonte = Array.isArray(raw.remanescentes)
-      ? 'raw.remanescentes'
-      : Array.isArray(raw.remanescentes_m6_2)
-        ? 'raw.remanescentes_m6_2'
-        : 'AUSENTE';
-    console.info('[persistirResultadoRodada] etapa=remanescentes gravados=', contagem.remanescentes, 'fonte=', fonte);
+    console.info('[persistirResultadoRodada] remanescentes gravados total =', contagem.remanescentes);
   } catch (err) {
     const msg = `FALHA_PERSISTENCIA::ETAPA=remanescentes::${err instanceof Error ? err.message : String(err)}`;
     console.error('[persistirResultadoRodada]', msg);
