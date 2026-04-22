@@ -600,6 +600,194 @@ export async function salvarRespostaRodada(
   }
 }
 
+function toNumberOrNull(v: any): number | null {
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+function toIntOrZero(v: any): number {
+  const n = toNumberOrNull(v);
+  return n === null ? 0 : Math.round(n);
+}
+
+function toStrOrNull(v: any): string | null {
+  if (v === null || v === undefined) return null;
+  const s = String(v).trim();
+  return s === '' ? null : s;
+}
+
+function resolveMotorRaw(resposta: RespostaMotor): Record<string, any> | null {
+  if (!resposta || typeof resposta !== 'object') return null;
+  const asAny = resposta as any;
+  if (asAny.motor_response_raw && typeof asAny.motor_response_raw === 'object') {
+    return asAny.motor_response_raw;
+  }
+  if (asAny.manifestos_m7 || asAny.itens_manifestos_sequenciados_m7) {
+    return asAny;
+  }
+  return null;
+}
+
+function mapManifestoRow(rodadaId: string, m: any): Record<string, any> {
+  return {
+    rodada_id: rodadaId,
+    manifesto_id: toStrOrNull(m.manifesto_id) ?? '',
+    origem_modulo: toStrOrNull(m.origem_manifesto_modulo),
+    tipo_manifesto: toStrOrNull(m.origem_manifesto_tipo),
+    veiculo_perfil: toStrOrNull(m.veiculo_perfil),
+    veiculo_tipo: toStrOrNull(m.veiculo_tipo),
+    exclusivo_flag: Boolean(m.veiculo_exclusivo_flag),
+    peso_total: toNumberOrNull(m.peso_final_m6_2),
+    km_total: toNumberOrNull(m.km_total_sequencia_paradas_m7 ?? m.km_final_m6_2),
+    ocupacao: toNumberOrNull(m.ocupacao_final_m6_2 ?? m.ocupacao_entrada_perc),
+    qtd_entregas: toIntOrZero(m.qtd_docs_manifesto_m7 ?? m.qtd_paradas_manifesto_m7),
+    qtd_clientes: toIntOrZero(m.qtd_paradas_manifesto_m7 ?? m.qtd_cidades_manifesto_m7),
+    status: 'gerado',
+    sequencia_editada_flag: false,
+  };
+}
+
+function mapItemRow(rodadaId: string, item: any, fallbackSeq: number): Record<string, any> {
+  const seq =
+    toNumberOrNull(item.ordem_entrega_parada_m7) ??
+    toNumberOrNull(item.ordem_entrega_doc_m7) ??
+    toNumberOrNull(item.ordem_carregamento_doc_m7) ??
+    fallbackSeq;
+
+  return {
+    rodada_id: rodadaId,
+    manifesto_id: toStrOrNull(item.manifesto_id) ?? '',
+    sequencia_original: Math.max(1, Math.round(Number(seq))),
+    sequencia_atual: Math.max(1, Math.round(Number(seq))),
+    nro_documento: toStrOrNull(item.nro_documento),
+    destinatario: toStrOrNull(item.destinatario),
+    cidade: toStrOrNull(item.cidade ?? item.cidade_ref_m7),
+    uf: toStrOrNull(item.uf ?? item.uf_ref_m7),
+    peso: toNumberOrNull(item.peso_calculado ?? item.peso_kg),
+    distancia_km: toNumberOrNull(
+      item.distancia_origem_parada_km_m7 ?? item.distancia_rodoviaria_est_km ?? item.dist_no_anterior_km_m7
+    ),
+    inicio_entrega: toStrOrNull(item.inicio_entrega),
+    fim_entrega: toStrOrNull(item.fim_entrega),
+    latitude: toNumberOrNull(item.latitude_dest_m7 ?? item.latitude_destinatario ?? item.latitude),
+    longitude: toNumberOrNull(item.longitude_dest_m7 ?? item.longitude_destinatario ?? item.longitude),
+    observacoes: toStrOrNull(item.justificativa_ordem_entrega_m7),
+  };
+}
+
+function extractRemanescentesExplicit(raw: Record<string, any>): any[] | null {
+  if (Array.isArray(raw.remanescentes)) return raw.remanescentes;
+  if (Array.isArray(raw.remanescentes_m6_2)) return raw.remanescentes_m6_2;
+  return null;
+}
+
+function mapRemanescenteRow(rodadaId: string, r: any): Record<string, any> {
+  return {
+    rodada_id: rodadaId,
+    nro_documento: toStrOrNull(r.nro_documento),
+    destinatario: toStrOrNull(r.destinatario),
+    cidade: toStrOrNull(r.cidade),
+    uf: toStrOrNull(r.uf),
+    motivo: toStrOrNull(r.motivo ?? r.motivo_nao_roteirizado),
+    etapa_origem: toStrOrNull(r.origem_etapa ?? r.etapa_origem),
+    payload_apoio_json: r,
+  };
+}
+
+function mapEstatisticasRow(rodadaId: string, resposta: RespostaMotor, raw: Record<string, any> | null): Record<string, any> {
+  const asAny = resposta as any;
+  const resumoNegocio = raw?.resumo_negocio ?? {};
+  const tempos = asAny?.resumo_execucao?.tempos_ms ?? {};
+
+  const totalManifestos = toIntOrZero(resumoNegocio.total_manifestos_m7 ?? resumoNegocio.total_manifestos_base_m6);
+  const totalRoteirizados = toIntOrZero(resumoNegocio.total_itens_manifestos_sequenciados_m7 ?? resumoNegocio.total_itens_manifestos_m6_2);
+  const totalRemanescente = toIntOrZero(resumoNegocio.total_remanescente_m6_2 ?? resumoNegocio.total_remanescente_m5_4);
+  const totalCarteira = toIntOrZero(resumoNegocio.total_carteira);
+
+  return {
+    rodada_id: rodadaId,
+    total_carteira: totalCarteira,
+    total_roteirizado: totalRoteirizados,
+    total_remanescente: totalRemanescente,
+    total_manifestos: totalManifestos,
+    km_total: null,
+    ocupacao_media: null,
+    tempo_execucao_ms: toNumberOrNull(tempos.tempo_total_pipeline_ms),
+    resumo_modulos_json: asAny?.status_modulos ?? null,
+  };
+}
+
+export async function persistirResultadoRodada(
+  rodadaId: string,
+  resposta: RespostaMotor
+): Promise<void> {
+  try {
+    const raw = resolveMotorRaw(resposta);
+    const statusTop = (resposta as any)?.status;
+    if (statusTop === 'erro') return;
+
+    // 1. limpeza idempotente
+    await supabase.from('manifestos_itens').delete().eq('rodada_id', rodadaId);
+    await supabase.from('manifestos_roteirizacao').delete().eq('rodada_id', rodadaId);
+    await supabase.from('remanescentes_roteirizacao').delete().eq('rodada_id', rodadaId);
+    await supabase.from('estatisticas_roteirizacao').delete().eq('rodada_id', rodadaId);
+
+    // 2. manifestos
+    const manifestos = Array.isArray(raw?.manifestos_m7) ? raw!.manifestos_m7 : [];
+    if (manifestos.length > 0) {
+      const rows = manifestos.map((m: any) => mapManifestoRow(rodadaId, m)).filter((r) => r.manifesto_id);
+      if (rows.length > 0) {
+        const { error } = await supabase.from('manifestos_roteirizacao').insert(rows);
+        if (error) throw new Error(`manifestos_roteirizacao: ${error.message}`);
+      }
+    }
+
+    // 3. itens sequenciados
+    const itens = Array.isArray(raw?.itens_manifestos_sequenciados_m7)
+      ? raw!.itens_manifestos_sequenciados_m7
+      : [];
+    if (itens.length > 0) {
+      const perManifestCounter: Record<string, number> = {};
+      const rows = itens
+        .map((it: any) => {
+          const mid = toStrOrNull(it.manifesto_id) ?? '';
+          perManifestCounter[mid] = (perManifestCounter[mid] ?? 0) + 1;
+          return mapItemRow(rodadaId, it, perManifestCounter[mid]);
+        })
+        .filter((r) => r.manifesto_id);
+
+      if (rows.length > 0) {
+        const { error } = await supabase.from('manifestos_itens').insert(rows);
+        if (error) throw new Error(`manifestos_itens: ${error.message}`);
+      }
+    }
+
+    // 4. remanescentes: apenas se existir nó explícito
+    if (raw) {
+      const rem = extractRemanescentesExplicit(raw);
+      if (rem && rem.length > 0) {
+        const rows = rem.map((r: any) => mapRemanescenteRow(rodadaId, r));
+        const { error } = await supabase.from('remanescentes_roteirizacao').insert(rows);
+        if (error) throw new Error(`remanescentes_roteirizacao: ${error.message}`);
+      }
+    }
+
+    // 5. estatísticas
+    const statsRow = mapEstatisticasRow(rodadaId, resposta, raw);
+    const { error: eStats } = await supabase.from('estatisticas_roteirizacao').insert(statsRow);
+    if (eStats) throw new Error(`estatisticas_roteirizacao: ${eStats.message}`);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[persistirResultadoRodada]', msg);
+    await registrarAuditoriaRoteirizacao('roteirizacao_erro', {
+      rodada_id: rodadaId,
+      erro: `Falha ao persistir resultado estruturado: ${msg}`,
+      fase: 'persistirResultadoRodada',
+    }).catch(() => undefined);
+  }
+}
+
 export async function registrarErroRodada(
   rodadaId: string,
   mensagemErro: string

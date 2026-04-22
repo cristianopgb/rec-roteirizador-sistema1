@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Layout } from '../components/layout/Layout';
 import { useAuth } from '../contexts/AuthContext';
 import { FileUpload } from '../components/ui/FileUpload';
@@ -28,7 +29,9 @@ import {
   registrarErroRodada,
   registrarAuditoriaRoteirizacao,
   validarPayloadAntesDenvio,
+  persistirResultadoRodada,
 } from '../services/roteirizacao.service';
+import { calcularFreteMinimoPorManifesto } from '../services/frete.service';
 
 interface UploadStats {
   id: string;
@@ -143,6 +146,7 @@ function renderErroM8(resposta: RespostaMotorM8) {
 
 export function Roteirizacao() {
   const { user, profile } = useAuth();
+  const navigate = useNavigate();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentUpload, setCurrentUpload] = useState<UploadStats | null>(null);
@@ -438,6 +442,15 @@ export function Roteirizacao() {
         : '';
 
       alert(`Roteirização concluída com sucesso!${tipoMsg}\n\n${mensagem}${resumoMsg}`);
+
+      try {
+        await persistirResultadoRodada(rodadaId, resposta);
+        await calcularFreteMinimoPorManifesto(rodadaId);
+      } catch (persistErr) {
+        console.error('Erro ao persistir resultado estruturado:', persistErr);
+      }
+
+      navigate(`/aprovacao?rodadaId=${rodadaId}`);
     } catch (err) {
       console.error('Erro ao roteirizar:', err);
       const errorMessage = err instanceof Error ? err.message : 'Erro ao processar roteirização';
