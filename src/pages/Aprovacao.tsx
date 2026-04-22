@@ -86,6 +86,7 @@ interface RemanescenteRow {
   uf: string | null;
   motivo: string | null;
   etapa_origem: string | null;
+  grupo_remanescente: 'nao_roteirizavel' | 'saldo_roteirizacao' | null;
 }
 
 interface FilialRow {
@@ -705,30 +706,51 @@ function RemanescentesTable({ data }: { data: RemanescenteRow[] }) {
       />
     );
   }
-  return (
-    <div className="overflow-x-auto -mx-6">
-      <table className="w-full text-sm">
-        <thead className="bg-gray-50 text-xs uppercase text-gray-600">
-          <tr>
-            <th className="px-4 py-2 text-left">Documento</th>
-            <th className="px-4 py-2 text-left">Cliente</th>
-            <th className="px-4 py-2 text-left">Cidade/UF</th>
-            <th className="px-4 py-2 text-left">Motivo</th>
-            <th className="px-4 py-2 text-left">Etapa</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100">
-          {data.map((r) => (
-            <tr key={r.id}>
-              <td className="px-4 py-2 font-mono">{r.nro_documento ?? '-'}</td>
-              <td className="px-4 py-2">{r.destinatario ?? '-'}</td>
-              <td className="px-4 py-2">{r.cidade ?? '-'}{r.uf ? ` / ${r.uf}` : ''}</td>
-              <td className="px-4 py-2">{r.motivo ?? '-'}</td>
-              <td className="px-4 py-2 text-gray-600">{r.etapa_origem ?? '-'}</td>
+  const naoRoteirizaveis = data.filter((r) => r.grupo_remanescente === 'nao_roteirizavel');
+  const saldoRoteirizacao = data.filter((r) => r.grupo_remanescente === 'saldo_roteirizacao');
+
+  function renderTabela(rows: RemanescenteRow[], titulo: string) {
+    return (
+      <div className="space-y-2">
+        <h4 className="text-sm font-semibold text-gray-900">{titulo} ({rows.length})</h4>
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 text-xs uppercase text-gray-600">
+            <tr>
+              <th className="px-4 py-2 text-left">Documento</th>
+              <th className="px-4 py-2 text-left">Cliente</th>
+              <th className="px-4 py-2 text-left">Cidade/UF</th>
+              <th className="px-4 py-2 text-left">Motivo</th>
+              <th className="px-4 py-2 text-left">Etapa</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {rows.length === 0 ? (
+              <tr>
+                <td className="px-4 py-3 text-gray-500" colSpan={5}>Nenhum item neste grupo.</td>
+              </tr>
+            ) : rows.map((r) => (
+              <tr key={r.id}>
+                <td className="px-4 py-2 font-mono">{r.nro_documento ?? '-'}</td>
+                <td className="px-4 py-2">{r.destinatario ?? '-'}</td>
+                <td className="px-4 py-2">{r.cidade ?? '-'}{r.uf ? ` / ${r.uf}` : ''}</td>
+                <td className="px-4 py-2">{r.motivo ?? '-'}</td>
+                <td className="px-4 py-2 text-gray-600">{r.etapa_origem ?? '-'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  return (
+    <div className="overflow-x-auto -mx-6 space-y-6">
+      <div className="px-6">
+        {renderTabela(naoRoteirizaveis, 'Não roteirizáveis')}
+      </div>
+      <div className="px-6">
+        {renderTabela(saldoRoteirizacao, 'Saldo da roteirização')}
+      </div>
     </div>
   );
 }
